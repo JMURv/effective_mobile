@@ -1,0 +1,25 @@
+version: 3
+
+tasks:
+  run:
+    desc: Run app
+    cmds:
+      - go run cmd/main.go
+
+  test:
+    desc: Run tests
+    cmds:
+      - go test ./internal/repo/db
+      - go test ./internal/ctrl
+      - go test ./internal/hdl/http
+
+  swag:
+    desc: Generate swagger
+    cmds:
+      - swag init -g cmd/main.go
+
+  mocks:
+    desc: Generate mocks
+    cmds:
+      - mockgen -source="./internal/hdl/http/http.go" -destination="mocks/mock_ctrl.go" -package=mocks
+      - mockgen -source="./internal/ctrl/ctrl.go" -destination="mocks/mock_repos.go" -package=mocks
