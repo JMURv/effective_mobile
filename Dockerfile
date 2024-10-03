@@ -14,8 +14,9 @@ FROM alpine:3.19
 
 WORKDIR /app
 
+COPY db /app
 COPY --from=builder /app/main ./
 
-EXPOSE 50040
+EXPOSE 8080 8081
 
 CMD ["./main"]
