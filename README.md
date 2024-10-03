@@ -1,4 +1,4 @@
-[![Go Coverage](https://github.com/JMURv/effective_mobile/wiki/coverage.svg)](https://raw.githack.com/wiki/JMURv/sso/coverage.html)
+[![Go Coverage](https://github.com/JMURv/effective_mobile/wiki/coverage.svg)](https://raw.githack.com/wiki/JMURv/effective_mobile/coverage.html)
 
 ### Локальный запуск
 1. Создать `.env` файл по примеру из `.env.example`
