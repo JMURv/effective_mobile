@@ -14,7 +14,7 @@ FROM alpine:3.19
 
 WORKDIR /app
 
-COPY db .
+COPY ./db /app/db
 COPY --from=builder /app/main ./
 
 EXPOSE 8080 8081
