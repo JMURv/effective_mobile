@@ -105,6 +105,11 @@ tasks:
     cmds:
       - "docker compose --env-file {{.DEV_ENV_PATH}} -f {{.DEV_DC_PATH}} up --build --watch"
 
+  dc-dev-deps:
+    desc: Run dev compose without app
+    cmds:
+      - "docker compose --env-file {{.DEV_ENV_PATH}} -f {{.DEV_DC_PATH}} up"
+
   dc-dev-down:
     desc: Shutdown dev compose
     cmds:

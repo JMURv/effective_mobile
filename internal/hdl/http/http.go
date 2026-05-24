@@ -8,7 +8,6 @@ import (
 	"time"
 
 	_ "github.com/JMURv/golang-clean-template/api/rest/v1"
-	"github.com/JMURv/golang-clean-template/internal/auth"
 	"github.com/JMURv/golang-clean-template/internal/ctrl"
 	mid "github.com/JMURv/golang-clean-template/internal/hdl/http/middleware"
 	"github.com/JMURv/golang-clean-template/internal/hdl/http/utils"
@@ -20,18 +19,16 @@ import (
 
 type Handler struct {
 	Router *chi.Mux
-	au     auth.Core
 	srv    *http.Server
 	ctrl   ctrl.AppCtrl
 }
 
-func New(au auth.Core, ctrl ctrl.AppCtrl) *Handler {
+func New(ctrl ctrl.AppCtrl) *Handler {
 	r := chi.NewRouter()
 	r.Use(
 		mid.Logger(zap.L()),
 		middleware.StripSlashes,
 		middleware.RequestID,
-		middleware.RealIP,
 		middleware.Recoverer,
 		mid.Prometheus,
 		mid.OT,
@@ -39,13 +36,10 @@ func New(au auth.Core, ctrl ctrl.AppCtrl) *Handler {
 
 	hdl := &Handler{
 		Router: r,
-		au:     au,
 		ctrl:   ctrl,
 	}
 
-	hdl.RegisterAuthRoutes()
-	hdl.RegisterUserRoutes()
-	hdl.RegisterDeviceRoutes()
+	hdl.RegisterSubscriptionRoutes()
 	r.Get("/swagger/*", httpSwagger.WrapHandler)
 	r.Get(
 		"/health", func(w http.ResponseWriter, r *http.Request) {

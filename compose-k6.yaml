@@ -7,13 +7,6 @@ services:
     volumes: !reset []
     networks: !override [ app-template-k6 ]
 
-  minio:
-    extends:
-      service: minio
-      file: compose.yaml
-    volumes: !reset []
-    networks: !override [ app-template-k6 ]
-
   db:
     extends:
       service: db

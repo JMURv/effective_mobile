@@ -91,7 +91,19 @@ func (c *Cache) Set(ctx context.Context, t time.Duration, key string, val any) {
 	span, ctx := ot.StartSpanFromContext(ctx, op)
 	defer span.Finish()
 
-	if err := c.cli.Set(ctx, key, val, t).Err(); err != nil {
+	jsonVal, err := json.Marshal(val)
+	if err != nil {
+		span.SetTag(config.ErrorSpanTag, true)
+		zap.L().Error(
+			"[CACHE] --> SERIALIZATION ERROR",
+			zap.String("op", op),
+			zap.String("t", t.String()), zap.String("key", key), zap.Any("val", val),
+			zap.Error(err),
+		)
+		return
+	}
+
+	if err := c.cli.Set(ctx, key, jsonVal, t).Err(); err != nil {
 		span.SetTag(config.ErrorSpanTag, true)
 		zap.L().Error(
 			"[CACHE] --> ERROR",
@@ -123,30 +135,4 @@ func (c *Cache) Delete(ctx context.Context, key string) {
 	}
 	zap.L().Info("[CACHE] --> DELETE", zap.String("key", key))
 	return
-}
-
-func (c *Cache) InvalidateKeysByPattern(ctx context.Context, pattern string) {
-	ctx = context.Background()
-	var cursor uint64
-	for {
-		var err error
-		var keys []string
-
-		keys, cursor, err = c.cli.Scan(ctx, cursor, pattern, 100).Result() // 100 keys at a time
-		if err != nil {
-			zap.L().Error("failed to scan redis", zap.Error(err))
-			break
-		}
-
-		if len(keys) > 0 {
-			if err = c.cli.Del(ctx, keys...).Err(); err != nil {
-				zap.L().Error("failed to delete keys", zap.Error(err))
-				break
-			}
-		}
-
-		if cursor == 0 {
-			break
-		}
-	}
 }
