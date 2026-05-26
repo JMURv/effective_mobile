@@ -1,4 +1,4 @@
-name: app-template-dev
+name: effective-mobile-dev
 services:
   redis:
     extends:
@@ -6,7 +6,7 @@ services:
       service: redis
     volumes: !override
       - redis_data_dev:/data
-    networks: !override [ app-template-dev ]
+    networks: !override [ effective-mobile-dev ]
 
   db:
     extends:
@@ -14,10 +14,10 @@ services:
       service: db
     volumes: !override
       - pg_data_dev:/var/lib/postgresql/data
-    networks: !override [ app-template-dev ]
+    networks: !override [ effective-mobile-dev ]
 
   backend:
-    image: app-template-backend:latest-dev
+    image: effective-mobile-backend:latest-dev
     build:
       context: .
       dockerfile: Dockerfile.dev
@@ -26,7 +26,7 @@ services:
     extends:
       file: compose.yaml
       service: backend
-    networks: !override [ app-template-dev ]
+    networks: !override [ effective-mobile-dev ]
     develop:
       watch: !override
         - action: sync
@@ -40,22 +40,22 @@ services:
     extends:
       service: jaeger
       file: compose.yaml
-    networks: !override [ app-template-dev ]
+    networks: !override [ effective-mobile-dev ]
 
   prometheus:
     extends:
       service: prometheus
       file: compose.yaml
     volumes: !override
-      - ./configs/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./build/configs/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data_dev:/prometheus
-    networks: !override [ app-template-dev ]
+    networks: !override [ effective-mobile-dev ]
 
   node-exp:
     extends:
       service: node-exp
       file: compose.yaml
-    networks: !override [ app-template-dev ]
+    networks: !override [ effective-mobile-dev ]
 
   grafana:
     extends:
@@ -63,8 +63,8 @@ services:
       file: compose.yaml
     volumes: !override
       - grafana_data_dev:/var/lib/grafana
-      - ./configs/grafana/provisioning:/etc/grafana/provisioning:ro
-    networks: !override [ app-template-dev ]
+      - ./build/configs/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks: !override [ effective-mobile-dev ]
 
   loki:
     extends:
@@ -72,35 +72,34 @@ services:
       file: compose.yaml
     volumes: !override
       - loki_data_dev:/loki
-      - ./configs/loki:/etc/loki
-    networks: !override [ app-template-dev ]
+      - ./build/configs/loki:/etc/loki
+    networks: !override [ effective-mobile-dev ]
 
   promtail:
     extends:
       service: promtail
       file: compose.yaml
-    networks: !override [ app-template-dev ]
+    networks: !override [ effective-mobile-dev ]
 
   postgres-exporter:
     extends:
       service: postgres-exporter
       file: compose.yaml
-    networks: !override [ app-template-dev ]
+    networks: !override [ effective-mobile-dev ]
 
   redis-exporter:
     extends:
       service: redis-exporter
       file: compose.yaml
-    networks: !override [ app-template-dev ]
+    networks: !override [ effective-mobile-dev ]
 
 volumes:
   pg_data_dev:
-  minio_data_dev:
   redis_data_dev:
   prometheus_data_dev:
   grafana_data_dev:
   loki_data_dev:
 
 networks:
-  app-template-dev:
-    name: app-template-dev
+  effective-mobile-dev:
+    name: effective-mobile-dev

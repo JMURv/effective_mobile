@@ -1,4 +1,4 @@
-name: app-template-prod
+name: effective-mobile-prod
 services:
   redis:
     container_name: redis
@@ -8,7 +8,7 @@ services:
       - "6379:6379"
     volumes:
       - redis_data_prod:/data
-    networks: [ app-template-prod ]
+    networks: [ effective-mobile-prod ]
 
   db:
     container_name: db
@@ -30,13 +30,13 @@ services:
       start_period: 2s
     volumes:
       - pg_data_prod:/var/lib/postgresql/data
-    networks: [ app-template-prod ]
+    networks: [ effective-mobile-prod ]
 
   backend:
     profiles: ["app"]
     container_name: backend
     restart: unless-stopped
-    image: app-template-backend:latest
+    image: effective-mobile-backend:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -55,12 +55,9 @@ services:
       db:
         condition: service_healthy
         restart: true
-      minio:
-        condition: service_healthy
-        restart: true
       redis:
         condition: service_started
-    networks: [ app-template-prod ]
+    networks: [ effective-mobile-prod ]
     develop:
       watch:
         - action: rebuild
@@ -79,7 +76,7 @@ services:
       - "14268:14268"
       - "16686:16686"
       - "6831:6831/udp"
-    networks: [ app-template-prod ]
+    networks: [ effective-mobile-prod ]
 
   prometheus:
     container_name: prometheus
@@ -92,9 +89,9 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ./configs/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./build/configs/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
-    networks: [ app-template-prod ]
+    networks: [ effective-mobile-prod ]
 
   node-exp:
     container_name: node-exp
@@ -103,7 +100,7 @@ services:
     profiles: ["observe"]
     ports:
       - "9100:9100"
-    networks: [ app-template-prod ]
+    networks: [ effective-mobile-prod ]
 
   grafana:
     container_name: grafana
@@ -116,8 +113,8 @@ services:
       - "3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./configs/grafana/provisioning:/etc/grafana/provisioning:ro
-    networks: [ app-template-prod ]
+      - ./build/configs/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks: [ effective-mobile-prod ]
 
   loki:
     container_name: loki
@@ -129,8 +126,8 @@ services:
     command: -config.file=/etc/loki/loki-config.yaml
     volumes:
       - loki_data:/loki
-      - ./configs/loki:/etc/loki
-    networks: [ app-template-prod ]
+      - ./build/configs/loki:/etc/loki
+    networks: [ effective-mobile-prod ]
 
   promtail:
     container_name: promtail
@@ -138,13 +135,13 @@ services:
     restart: unless-stopped
     profiles: ["observe"]
     volumes:
-      - ./configs/promtail:/etc/promtail
+      - ./build/configs/promtail:/etc/promtail
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     command: -config.file=/etc/promtail/promtail-config.yaml
     depends_on:
       - loki
-    networks: [ app-template-prod ]
+    networks: [ effective-mobile-prod ]
 
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:v0.17.1
@@ -156,7 +153,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    networks: [ app-template-prod ]
+    networks: [ effective-mobile-prod ]
 
   redis-exporter:
     image: oliver006/redis_exporter:v1.43.0
@@ -168,17 +165,16 @@ services:
     depends_on:
       redis:
         condition: service_started
-    networks: [ app-template-prod ]
+    networks: [ effective-mobile-prod ]
 
 
 volumes:
   pg_data_prod:
-  minio_data_prod:
   redis_data_prod:
   prometheus_data_prod:
   grafana_data_prod:
   loki_data_prod:
 
 networks:
-  app-template-prod:
-    name: app-template-prod
+  effective-mobile-prod:
+    name: effective-mobile-prod

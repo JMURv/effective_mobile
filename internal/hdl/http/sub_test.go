@@ -4,37 +4,45 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
-	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
-	"github.com/JMURv/golang-clean-template/internal/config"
-	"github.com/JMURv/golang-clean-template/internal/ctrl"
-	"github.com/JMURv/golang-clean-template/internal/dto"
-	"github.com/JMURv/golang-clean-template/internal/hdl"
-	"github.com/JMURv/golang-clean-template/internal/hdl/http/utils"
-	md "github.com/JMURv/golang-clean-template/internal/models"
+	"github.com/JMURv/effective-mobile/internal/ctrl"
+	"github.com/JMURv/effective-mobile/internal/dto"
+	"github.com/JMURv/effective-mobile/internal/hdl"
+	"github.com/JMURv/effective-mobile/internal/hdl/http/utils"
+	"github.com/JMURv/effective-mobile/internal/hdl/validation"
+	md "github.com/JMURv/effective-mobile/internal/models"
+	"github.com/JMURv/effective-mobile/tests/mocks"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-playground/validator/v10"
 	"github.com/goccy/go-json"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"go.uber.org/zap"
 )
 
-func TestHandler_ExistsUser(t *testing.T) {
-	const uri = "/user/exists"
+func TestMain(m *testing.M) {
+	zap.ReplaceGlobals(zap.Must(zap.NewDevelopment()))
+	validation.V = validator.New()
+	os.Exit(m.Run())
+}
+
+func TestHandler_CreateSubscription(t *testing.T) {
+	const uri = "/subscriptions"
+
 	mock := gomock.NewController(t)
 	defer mock.Finish()
 
-	testErr := errors.New("testErr")
-	testEmail := "test@example.com"
 	mctrl := mocks.NewMockAppCtrl(mock)
-	mauth := mocks.NewMockCore(mock)
-	h := New(mauth, mctrl)
+	h := New(mctrl)
+
+	testErr := errors.New("test error")
 
 	tests := []struct {
 		name       string
@@ -44,91 +52,489 @@ func TestHandler_ExistsUser(t *testing.T) {
 		assertions func(r *httptest.ResponseRecorder)
 	}{
 		{
-			name:    "ErrDecodeRequest_InvalidPayload",
+			name:    "BadRequest_InvalidJSON",
 			payload: "invalid-json",
 			status:  http.StatusBadRequest,
+			expect:  func() {},
 			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Contains(t, res.Errors[0], "decode request")
+				var res utils.ErrorsResponse
+				_ = json.NewDecoder(r.Body).Decode(&res)
+				assert.Contains(t, res.Errors[0], "decode")
 			},
-			expect: func() {},
 		},
 		{
-			name:    "ErrDecodeRequest_InvalidEmail",
-			payload: map[string]any{"email": ""},
+			name:    "ValidationError",
+			payload: map[string]any{"service_name": ""},
 			status:  http.StatusBadRequest,
+			expect:  func() {},
 			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Contains(t, res.Errors[0], "required rule")
+				var res utils.ErrorsResponse
+				err := json.NewDecoder(r.Body).Decode(&res)
+				require.NoError(t, err)
+
+				assert.Contains(t, res.Errors[0], "required")
 			},
-			expect: func() {},
 		},
 		{
-			name:    "StatusNotFound",
-			payload: map[string]any{"email": testEmail},
-			status:  http.StatusNotFound,
+			name: "InternalError",
+			payload: map[string]any{
+				"service_name": "netflix",
+				"price":        100,
+				"user_id":      uuid.New().String(),
+				"start_date":   time.Now(),
+			},
+			status: http.StatusInternalServerError,
+			expect: func() {
+				mctrl.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					Return(testErr)
+			},
 			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
+				var res utils.ErrorsResponse
+				_ = json.NewDecoder(r.Body).Decode(&res)
+				assert.Equal(t, hdl.ErrInternal.Error(), res.Errors[0])
+			},
+		},
+		{
+			name: "Success",
+			payload: map[string]any{
+				"service_name": "netflix",
+				"price":        100,
+				"user_id":      uuid.New().String(),
+				"start_date":   time.Now(),
+			},
+			status: http.StatusCreated,
+			expect: func() {
+				mctrl.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					Return(nil)
+			},
+			assertions: func(r *httptest.ResponseRecorder) {},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.expect()
+
+			var body bytes.Buffer
+			if s, ok := tt.payload.(string); ok {
+				body.WriteString(s)
+			} else {
+				_ = json.NewEncoder(&body).Encode(tt.payload)
+			}
+
+			req := httptest.NewRequest(http.MethodPost, uri, &body)
+			req.Header.Set("Content-Type", "application/json")
+
+			w := httptest.NewRecorder()
+			h.createSubscription(w, req)
+
+			assert.Equal(t, tt.status, w.Code)
+
+			tt.assertions(w)
+		})
+	}
+}
+
+func TestHandler_GetSubscriptionByID(t *testing.T) {
+	mock := gomock.NewController(t)
+	defer mock.Finish()
+
+	mctrl := mocks.NewMockAppCtrl(mock)
+	h := New(mctrl)
+
+	id := uuid.New()
+	testErr := errors.New("test error")
+
+	tests := []struct {
+		name       string
+		id         string
+		status     int
+		expect     func()
+		assertions func(*httptest.ResponseRecorder)
+	}{
+		{
+			name:   "BadUUID",
+			id:     "invalid",
+			status: http.StatusBadRequest,
+			expect: func() {},
+			assertions: func(r *httptest.ResponseRecorder) {
+				var res utils.ErrorsResponse
+				_ = json.NewDecoder(r.Body).Decode(&res)
+				assert.NotEmpty(t, res.Errors)
+			},
+		},
+		{
+			name:   "NotFound",
+			id:     id.String(),
+			status: http.StatusNotFound,
+			expect: func() {
+				mctrl.EXPECT().
+					GetByID(gomock.Any(), id).
+					Return(md.Subscription{}, ctrl.ErrNotFound)
+			},
+			assertions: func(r *httptest.ResponseRecorder) {
+				var res utils.ErrorsResponse
+				_ = json.NewDecoder(r.Body).Decode(&res)
 				assert.Equal(t, ctrl.ErrNotFound.Error(), res.Errors[0])
 			},
+		},
+		{
+			name:   "InternalError",
+			id:     id.String(),
+			status: http.StatusInternalServerError,
 			expect: func() {
-				mctrl.EXPECT().IsUserExist(gomock.Any(), testEmail).Return(&dto.ExistsUserResponse{
-					Exists: false,
-				}, ctrl.ErrNotFound)
+				mctrl.EXPECT().
+					GetByID(gomock.Any(), id).
+					Return(md.Subscription{}, testErr)
+			},
+			assertions: func(r *httptest.ResponseRecorder) {
+				var res utils.ErrorsResponse
+				_ = json.NewDecoder(r.Body).Decode(&res)
+				assert.Equal(t, hdl.ErrInternal.Error(), res.Errors[0])
 			},
 		},
 		{
-			name:    "StatusInternalServerError",
-			payload: map[string]any{"email": testEmail},
+			name:   "Success",
+			id:     id.String(),
+			status: http.StatusOK,
+			expect: func() {
+				mctrl.EXPECT().
+					GetByID(gomock.Any(), id).
+					Return(md.Subscription{ID: id}, nil)
+			},
+			assertions: func(r *httptest.ResponseRecorder) {
+				var res md.Subscription
+				_ = json.NewDecoder(r.Body).Decode(&res)
+				assert.Equal(t, id, res.ID)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.expect()
+
+			req := httptest.NewRequest(http.MethodGet, "/subscriptions/"+tt.id, nil)
+
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("id", tt.id)
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+			w := httptest.NewRecorder()
+			h.getSubscriptionByID(w, req)
+
+			assert.Equal(t, tt.status, w.Code)
+			tt.assertions(w)
+		})
+	}
+}
+
+func TestHandler_ListSubscriptions(t *testing.T) {
+	mock := gomock.NewController(t)
+	defer mock.Finish()
+
+	mctrl := mocks.NewMockAppCtrl(mock)
+	h := New(mctrl)
+
+	testErr := errors.New("test error")
+
+	tests := []struct {
+		name       string
+		status     int
+		expect     func()
+		assertions func(*httptest.ResponseRecorder)
+	}{
+		{
+			name:   "InternalError",
+			status: http.StatusInternalServerError,
+			expect: func() {
+				mctrl.EXPECT().
+					List(gomock.Any()).
+					Return(nil, testErr)
+			},
+			assertions: func(r *httptest.ResponseRecorder) {
+				var res utils.ErrorsResponse
+				_ = json.NewDecoder(r.Body).Decode(&res)
+				assert.Equal(t, hdl.ErrInternal.Error(), res.Errors[0])
+			},
+		},
+		{
+			name:   "Success",
+			status: http.StatusOK,
+			expect: func() {
+				mctrl.EXPECT().
+					List(gomock.Any()).
+					Return([]md.Subscription{{}}, nil)
+			},
+			assertions: func(r *httptest.ResponseRecorder) {
+				var res []md.Subscription
+				_ = json.NewDecoder(r.Body).Decode(&res)
+				assert.Len(t, res, 1)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.expect()
+
+			req := httptest.NewRequest(http.MethodGet, "/subscriptions", nil)
+			w := httptest.NewRecorder()
+
+			h.listSubscriptions(w, req)
+
+			assert.Equal(t, tt.status, w.Code)
+			tt.assertions(w)
+		})
+	}
+}
+
+func TestHandler_UpdateSubscription(t *testing.T) {
+	mock := gomock.NewController(t)
+	defer mock.Finish()
+
+	mctrl := mocks.NewMockAppCtrl(mock)
+	h := New(mctrl)
+
+	id := uuid.New()
+	testErr := errors.New("test error")
+
+	tests := []struct {
+		name       string
+		id         string
+		payload    any
+		status     int
+		expect     func()
+		assertions func(*httptest.ResponseRecorder)
+	}{
+		{
+			name:    "BadUUID",
+			id:      "bad",
+			payload: map[string]any{"service_name": "netflix"},
+			status:  http.StatusBadRequest,
+			expect:  func() {},
+			assertions: func(r *httptest.ResponseRecorder) {
+				var res utils.ErrorsResponse
+				_ = json.NewDecoder(r.Body).Decode(&res)
+				assert.NotEmpty(t, res.Errors)
+			},
+		},
+		{
+			name:    "ValidationError",
+			id:      id.String(),
+			payload: map[string]any{"price": -1},
+			status:  http.StatusBadRequest,
+			expect:  func() {},
+			assertions: func(r *httptest.ResponseRecorder) {
+				var res utils.ErrorsResponse
+				_ = json.NewDecoder(r.Body).Decode(&res)
+				assert.NotEmpty(t, res.Errors)
+			},
+		},
+		{
+			name:    "InternalError",
+			id:      id.String(),
+			payload: map[string]any{"service_name": "netflix"},
 			status:  http.StatusInternalServerError,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Equal(t, testErr.Error(), res.Errors[0])
-			},
 			expect: func() {
-				mctrl.EXPECT().IsUserExist(gomock.Any(), testEmail).Return(&dto.ExistsUserResponse{
-					Exists: false,
-				}, testErr)
+				mctrl.EXPECT().
+					Update(gomock.Any(), id, gomock.Any()).
+					Return(testErr)
+			},
+			assertions: func(r *httptest.ResponseRecorder) {
+				var res utils.ErrorsResponse
+				_ = json.NewDecoder(r.Body).Decode(&res)
+				assert.Equal(t, hdl.ErrInternal.Error(), res.Errors[0])
 			},
 		},
 		{
-			name:    "Success_UserExists",
-			payload: map[string]any{"email": testEmail},
+			name:    "Success",
+			id:      id.String(),
+			payload: map[string]any{"service_name": "netflix"},
 			status:  http.StatusOK,
-			assertions: func(r *httptest.ResponseRecorder) {
-				var response dto.ExistsUserResponse
-				err := json.NewDecoder(r.Result().Body).Decode(&response)
-				assert.Nil(t, err)
-				assert.Equal(t, true, response.Exists)
-			},
 			expect: func() {
-				mctrl.EXPECT().IsUserExist(gomock.Any(), testEmail).Return(&dto.ExistsUserResponse{
-					Exists: true,
-				}, nil)
+				mctrl.EXPECT().
+					Update(gomock.Any(), id, gomock.Any()).
+					Return(nil)
+			},
+			assertions: func(r *httptest.ResponseRecorder) {},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.expect()
+
+			var body bytes.Buffer
+			_ = json.NewEncoder(&body).Encode(tt.payload)
+
+			req := httptest.NewRequest(http.MethodPut, "/subscriptions/"+tt.id, &body)
+			req.Header.Set("Content-Type", "application/json")
+
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("id", tt.id)
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+			w := httptest.NewRecorder()
+			h.updateSubscription(w, req)
+
+			assert.Equal(t, tt.status, w.Code)
+			tt.assertions(w)
+		})
+	}
+}
+
+func TestHandler_DeleteSubscription(t *testing.T) {
+	mock := gomock.NewController(t)
+	defer mock.Finish()
+
+	mctrl := mocks.NewMockAppCtrl(mock)
+	h := New(mctrl)
+
+	id := uuid.New()
+	testErr := errors.New("test error")
+
+	tests := []struct {
+		name   string
+		id     string
+		status int
+		expect func()
+	}{
+		{
+			name:   "BadUUID",
+			id:     "bad",
+			status: http.StatusBadRequest,
+			expect: func() {},
+		},
+		{
+			name:   "InternalError",
+			id:     id.String(),
+			status: http.StatusInternalServerError,
+			expect: func() {
+				mctrl.EXPECT().
+					Delete(gomock.Any(), id).
+					Return(testErr)
 			},
 		},
 		{
-			name:    "Success_UserNotExists",
-			payload: map[string]any{"email": testEmail},
-			status:  http.StatusOK,
-			assertions: func(r *httptest.ResponseRecorder) {
-				var response dto.ExistsUserResponse
-				err := json.NewDecoder(r.Result().Body).Decode(&response)
-				assert.Nil(t, err)
-				assert.Equal(t, false, response.Exists)
-			},
+			name:   "Success",
+			id:     id.String(),
+			status: http.StatusNoContent,
 			expect: func() {
-				mctrl.EXPECT().IsUserExist(gomock.Any(), testEmail).Return(&dto.ExistsUserResponse{
-					Exists: false,
-				}, nil)
+				mctrl.EXPECT().
+					Delete(gomock.Any(), id).
+					Return(nil)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.expect()
+
+			req := httptest.NewRequest(http.MethodDelete, "/subscriptions/"+tt.id, nil)
+
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("id", tt.id)
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+			w := httptest.NewRecorder()
+			h.deleteSubscription(w, req)
+
+			assert.Equal(t, tt.status, w.Code)
+		})
+	}
+}
+
+func TestHandler_CalculateTotalCost(t *testing.T) {
+	const uri = "/subscriptions/total"
+
+	mock := gomock.NewController(t)
+	defer mock.Finish()
+
+	mctrl := mocks.NewMockAppCtrl(mock)
+	h := New(mctrl)
+
+	testErr := errors.New("test error")
+
+	now := time.Now()
+
+	tests := []struct {
+		name       string
+		payload    any
+		status     int
+		expect     func()
+		assertions func(*httptest.ResponseRecorder)
+	}{
+		{
+			name:    "BadJSON",
+			payload: "invalid-json",
+			status:  http.StatusBadRequest,
+			expect:  func() {},
+			assertions: func(r *httptest.ResponseRecorder) {
+				var res utils.ErrorsResponse
+				_ = json.NewDecoder(r.Body).Decode(&res)
+				assert.Contains(t, res.Errors[0], "decode")
+			},
+		},
+		{
+			name: "ValidationError",
+			payload: map[string]any{
+				"service_name": "",
+				"user_id":      "",
+				"from":         now,
+				"to":           now,
+			},
+			status: http.StatusBadRequest,
+			expect: func() {},
+			assertions: func(r *httptest.ResponseRecorder) {
+				var res utils.ErrorsResponse
+				_ = json.NewDecoder(r.Body).Decode(&res)
+				assert.NotEmpty(t, res.Errors)
+			},
+		},
+		{
+			name: "InternalError",
+			payload: map[string]any{
+				"service_name": "netflix",
+				"user_id":      uuid.New().String(),
+				"from":         now.Add(-time.Hour),
+				"to":           now,
+			},
+			status: http.StatusInternalServerError,
+			expect: func() {
+				mctrl.EXPECT().
+					CalculateTotalCost(gomock.Any(), gomock.Any()).
+					Return(dto.CalculateTotalCostResponse{}, testErr)
+			},
+			assertions: func(r *httptest.ResponseRecorder) {
+				var res utils.ErrorsResponse
+				_ = json.NewDecoder(r.Body).Decode(&res)
+				assert.Equal(t, hdl.ErrInternal.Error(), res.Errors[0])
+			},
+		},
+		{
+			name: "Success",
+			payload: map[string]any{
+				"service_name": "netflix",
+				"user_id":      uuid.New().String(),
+				"from":         now.Add(-time.Hour),
+				"to":           now,
+			},
+			status: http.StatusOK,
+			expect: func() {
+				mctrl.EXPECT().
+					CalculateTotalCost(gomock.Any(), gomock.Any()).
+					Return(dto.CalculateTotalCostResponse{
+						TotalCost: 1500,
+					}, nil)
+			},
+			assertions: func(r *httptest.ResponseRecorder) {
+				var res dto.CalculateTotalCostResponse
+				_ = json.NewDecoder(r.Body).Decode(&res)
+				assert.Equal(t, int64(1500), res.TotalCost)
 			},
 		},
 	}
@@ -138,936 +544,20 @@ func TestHandler_ExistsUser(t *testing.T) {
 			tt.expect()
 
 			var body bytes.Buffer
-			if strPayload, ok := tt.payload.(string); ok {
-				body.WriteString(strPayload)
+			if s, ok := tt.payload.(string); ok {
+				body.WriteString(s)
 			} else {
-				err := json.NewEncoder(&body).Encode(tt.payload)
-				require.NoError(t, err)
+				_ = json.NewEncoder(&body).Encode(tt.payload)
 			}
 
 			req := httptest.NewRequest(http.MethodPost, uri, &body)
 			req.Header.Set("Content-Type", "application/json")
 
 			w := httptest.NewRecorder()
-			h.existsUser(w, req)
-			assert.Equal(t, tt.status, w.Result().StatusCode)
+			h.calculateTotalCost(w, req)
 
-			defer func() {
-				assert.Nil(t, w.Result().Body.Close())
-			}()
-
+			assert.Equal(t, tt.status, w.Code)
 			tt.assertions(w)
-		})
-	}
-}
-
-func TestHandler_ListUsers(t *testing.T) {
-	const uri = "/users"
-	mock := gomock.NewController(t)
-	defer mock.Finish()
-
-	testErr := errors.New("testErr")
-	mctrl := mocks.NewMockAppCtrl(mock)
-	mauth := mocks.NewMockCore(mock)
-	h := New(mauth, mctrl)
-
-	testUsers := dto.PaginatedUserResponse{
-		Data: []*md.User{
-			{
-				ID:       uuid.New(),
-				Name:     "name",
-				Email:    "example@email.com",
-				IsActive: true,
-			},
-			{
-				ID:       uuid.New(),
-				Name:     "name-1",
-				Email:    "example-1@email.com",
-				IsActive: true,
-			},
-		},
-		Count:       2,
-		TotalPages:  1,
-		CurrentPage: 1,
-		HasNextPage: false,
-	}
-
-	tests := []struct {
-		name       string
-		query      string
-		status     int
-		expect     func()
-		assertions func(r *httptest.ResponseRecorder)
-	}{
-		{
-			name:   "DefaultPagination",
-			query:  "",
-			status: http.StatusOK,
-			assertions: func(r *httptest.ResponseRecorder) {
-				var response dto.PaginatedUserResponse
-				err := json.NewDecoder(r.Result().Body).Decode(&response)
-				assert.Nil(t, err)
-				assert.Len(t, response.Data, 2)
-				assert.Equal(t, int64(2), response.Count)
-				assert.Equal(t, config.DefaultPage, response.CurrentPage)
-			},
-			expect: func() {
-				mctrl.EXPECT().ListUsers(
-					gomock.Any(),
-					config.DefaultPage,
-					config.DefaultSize,
-					gomock.Any(),
-				).Return(&testUsers, nil)
-			},
-		},
-		{
-			name:   "CustomPagination",
-			query:  "page=2&size=10",
-			status: http.StatusOK,
-			assertions: func(r *httptest.ResponseRecorder) {
-				var response dto.PaginatedUserResponse
-				err := json.NewDecoder(r.Result().Body).Decode(&response)
-				assert.Nil(t, err)
-				assert.Len(t, response.Data, 2)
-			},
-			expect: func() {
-				mctrl.EXPECT().ListUsers(
-					gomock.Any(),
-					2,
-					10,
-					gomock.Any(),
-				).Return(&testUsers, nil)
-			},
-		},
-		{
-			name:   "InvalidPageParam",
-			query:  "page=invalid&size=10",
-			status: http.StatusOK,
-			assertions: func(r *httptest.ResponseRecorder) {
-				var response dto.PaginatedUserResponse
-				err := json.NewDecoder(r.Result().Body).Decode(&response)
-				assert.Nil(t, err)
-				assert.Equal(t, 1, response.CurrentPage)
-			},
-			expect: func() {
-				mctrl.EXPECT().ListUsers(
-					gomock.Any(),
-					1,
-					10,
-					gomock.Any(),
-				).Return(&testUsers, nil)
-			},
-		},
-		{
-			name:   "InvalidSizeParam",
-			query:  "page=2&size=invalid",
-			status: http.StatusOK,
-			assertions: func(r *httptest.ResponseRecorder) {
-				var response dto.PaginatedUserResponse
-				err := json.NewDecoder(r.Result().Body).Decode(&response)
-				assert.Nil(t, err)
-				assert.Equal(t, int64(2), response.Count)
-			},
-			expect: func() {
-				mctrl.EXPECT().ListUsers(
-					gomock.Any(),
-					2,
-					config.DefaultSize,
-					gomock.Any(),
-				).Return(&testUsers, nil)
-			},
-		},
-		{
-			name:   "StatusInternalServerError",
-			query:  "",
-			status: http.StatusInternalServerError,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Equal(t, hdl.ErrInternal.Error(), res.Errors[0])
-			},
-			expect: func() {
-				mctrl.EXPECT().ListUsers(
-					gomock.Any(),
-					gomock.Any(),
-					gomock.Any(),
-					gomock.Any(),
-				).Return(nil, testErr)
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.expect()
-
-			req := httptest.NewRequest(http.MethodGet, uri+"?"+tt.query, nil)
-
-			w := httptest.NewRecorder()
-			h.listUsers(w, req)
-			assert.Equal(t, tt.status, w.Result().StatusCode)
-
-			defer func() {
-				assert.Nil(t, w.Result().Body.Close())
-			}()
-
-			tt.assertions(w)
-		})
-	}
-}
-
-func TestHandler_GetMe(t *testing.T) {
-	const uri = "/users/me"
-	mock := gomock.NewController(t)
-	defer mock.Finish()
-
-	testErr := errors.New("testErr")
-	testUUID := uuid.New()
-	mctrl := mocks.NewMockAppCtrl(mock)
-	mauth := mocks.NewMockCore(mock)
-	h := New(mauth, mctrl)
-
-	testUser := md.User{
-		ID:              testUUID,
-		Name:            "Test User",
-		Email:           "test@example.com",
-		Avatar:          "https://example.com/avatar.jpg",
-		IsActive:        true,
-		IsEmailVerified: true,
-		CreatedAt:       time.Now(),
-		UpdatedAt:       time.Now(),
-	}
-
-	tests := []struct {
-		name       string
-		uid        any // Can be uuid.UUID or other types
-		status     int
-		expect     func()
-		assertions func(r *httptest.ResponseRecorder)
-	}{
-		{
-			name:   "ErrFailedToParseUUID_Nil",
-			uid:    uuid.Nil,
-			status: http.StatusInternalServerError,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Equal(t, hdl.ErrFailedToParseUUID.Error(), res.Errors[0])
-			},
-			expect: func() {},
-		},
-		{
-			name:   "ErrFailedToParseUUID_InvalidType",
-			uid:    "invalid-uuid",
-			status: http.StatusInternalServerError,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Equal(t, hdl.ErrFailedToParseUUID.Error(), res.Errors[0])
-			},
-			expect: func() {},
-		},
-		{
-			name:   "StatusNotFound",
-			uid:    testUUID,
-			status: http.StatusNotFound,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Equal(t, ctrl.ErrNotFound.Error(), res.Errors[0])
-			},
-			expect: func() {
-				mctrl.EXPECT().GetUserByID(gomock.Any(), testUUID).Return(nil, ctrl.ErrNotFound)
-			},
-		},
-		{
-			name:   "StatusInternalServerError",
-			uid:    testUUID,
-			status: http.StatusInternalServerError,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Equal(t, hdl.ErrInternal.Error(), res.Errors[0])
-			},
-			expect: func() {
-				mctrl.EXPECT().GetUserByID(gomock.Any(), testUUID).Return(nil, testErr)
-			},
-		},
-		{
-			name:   "Success",
-			uid:    testUUID,
-			status: http.StatusOK,
-			assertions: func(r *httptest.ResponseRecorder) {
-				var user md.User
-				err := json.NewDecoder(r.Result().Body).Decode(&user)
-				assert.Nil(t, err)
-				assert.Equal(t, testUser.ID, user.ID)
-				assert.Equal(t, testUser.Name, user.Name)
-				assert.Equal(t, testUser.Email, user.Email)
-				assert.Equal(t, testUser.Avatar, user.Avatar)
-				assert.Equal(t, testUser.IsActive, user.IsActive)
-				assert.Equal(t, testUser.IsEmailVerified, user.IsEmailVerified)
-				assert.False(t, user.CreatedAt.IsZero())
-				assert.False(t, user.UpdatedAt.IsZero())
-				assert.Equal(t, "", user.Password)
-			},
-			expect: func() {
-				mctrl.EXPECT().GetUserByID(gomock.Any(), testUUID).Return(&testUser, nil)
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.expect()
-
-			req := httptest.NewRequest(http.MethodGet, uri, nil)
-
-			ctx := context.WithValue(req.Context(), config.UidKey, tt.uid)
-			req = req.WithContext(ctx)
-
-			w := httptest.NewRecorder()
-			h.getMe(w, req)
-			assert.Equal(t, tt.status, w.Result().StatusCode)
-
-			defer func() {
-				assert.Nil(t, w.Result().Body.Close())
-			}()
-
-			tt.assertions(w)
-		})
-	}
-}
-
-func TestHandler_GetUser(t *testing.T) {
-	const uriTemplate = "/users/%s"
-	mock := gomock.NewController(t)
-	defer mock.Finish()
-
-	testErr := errors.New("testErr")
-	testUUID := uuid.New()
-	mctrl := mocks.NewMockAppCtrl(mock)
-	mauth := mocks.NewMockCore(mock)
-	h := New(mauth, mctrl)
-
-	testUser := md.User{
-		ID:              testUUID,
-		Name:            "Test User",
-		Email:           "test@example.com",
-		Avatar:          "https://example.com/avatar.jpg",
-		IsActive:        true,
-		IsEmailVerified: true,
-		CreatedAt:       time.Now(),
-		UpdatedAt:       time.Now(),
-	}
-
-	tests := []struct {
-		name       string
-		userID     string
-		status     int
-		expect     func()
-		assertions func(r *httptest.ResponseRecorder)
-	}{
-		{
-			name:   "ErrInvalidUUID_Empty",
-			userID: "",
-			status: http.StatusInternalServerError,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Equal(t, hdl.ErrFailedToParseUUID.Error(), res.Errors[0])
-			},
-			expect: func() {},
-		},
-		{
-			name:   "ErrInvalidUUID_Format",
-			userID: "invalid-uuid",
-			status: http.StatusInternalServerError,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Equal(t, hdl.ErrFailedToParseUUID.Error(), res.Errors[0])
-			},
-			expect: func() {},
-		},
-		{
-			name:   "StatusNotFound",
-			userID: testUUID.String(),
-			status: http.StatusNotFound,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Equal(t, ctrl.ErrNotFound.Error(), res.Errors[0])
-			},
-			expect: func() {
-				mctrl.EXPECT().GetUserByID(gomock.Any(), testUUID).Return(nil, ctrl.ErrNotFound)
-			},
-		},
-		{
-			name:   "StatusInternalServerError",
-			userID: testUUID.String(),
-			status: http.StatusInternalServerError,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Equal(t, hdl.ErrInternal.Error(), res.Errors[0])
-			},
-			expect: func() {
-				mctrl.EXPECT().GetUserByID(gomock.Any(), testUUID).Return(nil, testErr)
-			},
-		},
-		{
-			name:   "Success",
-			userID: testUUID.String(),
-			status: http.StatusOK,
-			assertions: func(r *httptest.ResponseRecorder) {
-				var user md.User
-				err := json.NewDecoder(r.Result().Body).Decode(&user)
-				assert.Nil(t, err)
-				assert.Equal(t, testUser.ID, user.ID)
-				assert.Equal(t, testUser.Name, user.Name)
-				assert.Equal(t, testUser.Email, user.Email)
-				assert.Equal(t, testUser.Avatar, user.Avatar)
-				assert.Equal(t, testUser.IsActive, user.IsActive)
-				assert.Equal(t, testUser.IsEmailVerified, user.IsEmailVerified)
-				assert.False(t, user.CreatedAt.IsZero())
-				assert.False(t, user.UpdatedAt.IsZero())
-				assert.Empty(t, user.Password)
-			},
-			expect: func() {
-				mctrl.EXPECT().GetUserByID(gomock.Any(), testUUID).Return(&testUser, nil)
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.expect()
-			uri := fmt.Sprintf(uriTemplate, tt.userID)
-			req := httptest.NewRequest(http.MethodGet, uri, nil)
-
-			rctx := chi.NewRouteContext()
-			rctx.URLParams.Add("id", tt.userID)
-			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-			w := httptest.NewRecorder()
-			h.getUser(w, req)
-			assert.Equal(t, tt.status, w.Result().StatusCode)
-
-			defer func() {
-				assert.Nil(t, w.Result().Body.Close())
-			}()
-
-			tt.assertions(w)
-		})
-	}
-}
-
-func TestHandler_CreateUser(t *testing.T) {
-	const uri = "/users"
-	mock := gomock.NewController(t)
-	defer mock.Finish()
-
-	testErr := errors.New("testErr")
-	testUUID := uuid.New()
-	mctrl := mocks.NewMockAppCtrl(mock)
-	mauth := mocks.NewMockCore(mock)
-	h := New(mauth, mctrl)
-
-	validRequest := map[string]any{
-		"name":     "Test User",
-		"email":    "test@example.com",
-		"password": "securePassword123!",
-	}
-
-	invalidRequest := map[string]any{
-		"email": "invalid-email",
-	}
-
-	tests := []struct {
-		name          string
-		payload       any
-		withAvatar    bool
-		avatarContent []byte
-		status        int
-		expect        func()
-		assertions    func(r *httptest.ResponseRecorder)
-	}{
-		{
-			name:    "ErrDecodeRequest_InvalidForm",
-			payload: "invalid-form",
-			status:  http.StatusBadRequest,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Equal(t, hdl.ErrDecodeRequest.Error(), res.Errors[0])
-			},
-		},
-		{
-			name:    "ErrDecodeRequest_InvalidJSON",
-			payload: "invalid-json",
-			status:  http.StatusBadRequest,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Equal(t, hdl.ErrDecodeRequest.Error(), res.Errors[0])
-			},
-		},
-		{
-			name:    "ErrValidation",
-			payload: invalidRequest,
-			status:  http.StatusBadRequest,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Contains(t, res.Errors[0], "required rule")
-			},
-		},
-		{
-			name:          "ErrInvalidFileType",
-			payload:       validRequest,
-			withAvatar:    true,
-			avatarContent: []byte("not an image"),
-			status:        http.StatusBadRequest,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Contains(t, res.Errors[0], "invalid file type")
-			},
-		},
-		{
-			name:    "StatusConflict",
-			payload: validRequest,
-			status:  http.StatusConflict,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Equal(t, ctrl.ErrAlreadyExists.Error(), res.Errors[0])
-			},
-			expect: func() {
-				mctrl.EXPECT().CreateUser(
-					gomock.Any(),
-					gomock.Any(),
-					gomock.Any(),
-				).Return(nil, ctrl.ErrAlreadyExists)
-			},
-		},
-		{
-			name:    "StatusInternalServerError",
-			payload: validRequest,
-			status:  http.StatusInternalServerError,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Equal(t, hdl.ErrInternal.Error(), res.Errors[0])
-			},
-			expect: func() {
-				mctrl.EXPECT().CreateUser(
-					gomock.Any(),
-					gomock.Any(),
-					gomock.Any(),
-				).Return(nil, testErr)
-			},
-		},
-		{
-			name:    "Success_WithoutAvatar",
-			payload: validRequest,
-			status:  http.StatusCreated,
-			assertions: func(r *httptest.ResponseRecorder) {
-				var response dto.CreateUserResponse
-				err := json.NewDecoder(r.Result().Body).Decode(&response)
-				assert.Nil(t, err)
-				assert.Equal(t, testUUID, response.ID)
-			},
-			expect: func() {
-				mctrl.EXPECT().CreateUser(
-					gomock.Any(),
-					gomock.Any(),
-					gomock.Any(),
-				).Return(&dto.CreateUserResponse{ID: testUUID}, nil)
-			},
-		},
-		{
-			name:          "Success_WithValidImage",
-			payload:       validRequest,
-			withAvatar:    true,
-			avatarContent: []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A},
-			status:        http.StatusCreated,
-			assertions: func(r *httptest.ResponseRecorder) {
-				var response dto.CreateUserResponse
-				err := json.NewDecoder(r.Result().Body).Decode(&response)
-				assert.Nil(t, err)
-				assert.Equal(t, testUUID, response.ID)
-			},
-			expect: func() {
-				mctrl.EXPECT().CreateUser(
-					gomock.Any(),
-					gomock.Any(),
-					gomock.Any(),
-				).Return(&dto.CreateUserResponse{ID: testUUID}, nil)
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.expect != nil {
-				tt.expect()
-			}
-
-			body := &bytes.Buffer{}
-			writer := multipart.NewWriter(body)
-			jsonData, err := json.Marshal(tt.payload)
-			if err != nil {
-				writer.WriteField("data", tt.payload.(string))
-			} else {
-				writer.WriteField("data", string(jsonData))
-			}
-
-			if tt.withAvatar && tt.avatarContent != nil {
-				part, err := writer.CreateFormFile("avatar", "test.png")
-				require.NoError(t, err)
-				_, err = part.Write(tt.avatarContent)
-				require.NoError(t, err)
-			}
-
-			require.NoError(t, writer.Close())
-
-			req := httptest.NewRequest(http.MethodPost, uri, body)
-			req.Header.Set("Content-Type", writer.FormDataContentType())
-
-			w := httptest.NewRecorder()
-			h.createUser(w, req)
-			assert.Equal(t, tt.status, w.Result().StatusCode)
-
-			defer func() {
-				assert.Nil(t, w.Result().Body.Close())
-			}()
-
-			if tt.assertions != nil {
-				tt.assertions(w)
-			}
-		})
-	}
-}
-
-func TestHandler_UpdateUser(t *testing.T) {
-	mock := gomock.NewController(t)
-	defer mock.Finish()
-
-	testErr := errors.New("testErr")
-	mctrl := mocks.NewMockAppCtrl(mock)
-	mauth := mocks.NewMockCore(mock)
-	h := New(mauth, mctrl)
-
-	validRequest := map[string]any{
-		"name":  "Test User",
-		"email": "test@example.com",
-	}
-
-	invalidRequest := map[string]any{
-		"email": "invalid-email",
-	}
-
-	tests := []struct {
-		name          string
-		uid           string
-		payload       any
-		withAvatar    bool
-		avatarContent []byte
-		status        int
-		expect        func()
-		assertions    func(r *httptest.ResponseRecorder)
-	}{
-		{
-			name:    "ErrFailedToParseUUID",
-			uid:     "invalid-uuid",
-			payload: validRequest,
-			status:  http.StatusUnauthorized,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Equal(t, hdl.ErrFailedToParseUUID.Error(), res.Errors[0])
-			},
-		},
-		{
-			name:    "ErrDecodeRequest_InvalidForm",
-			uid:     uuid.New().String(),
-			payload: "invalid-form",
-			status:  http.StatusBadRequest,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Equal(t, hdl.ErrDecodeRequest.Error(), res.Errors[0])
-			},
-		},
-		{
-			name:    "ErrValidation",
-			uid:     uuid.New().String(),
-			payload: invalidRequest,
-			status:  http.StatusBadRequest,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Contains(t, res.Errors[0], "required rule")
-			},
-		},
-		{
-			name:          "ErrInvalidFileType",
-			uid:           uuid.New().String(),
-			payload:       validRequest,
-			withAvatar:    true,
-			avatarContent: []byte("not an image"),
-			status:        http.StatusBadRequest,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Contains(t, res.Errors[0], "invalid file type")
-			},
-		},
-		{
-			name:    "StatusInternalServerError",
-			uid:     uuid.New().String(),
-			payload: validRequest,
-			status:  http.StatusInternalServerError,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Equal(t, hdl.ErrInternal.Error(), res.Errors[0])
-			},
-			expect: func() {
-				mctrl.EXPECT().UpdateUser(
-					gomock.Any(),
-					gomock.Any(),
-					gomock.Any(),
-					gomock.Any(),
-				).Return(testErr)
-			},
-		},
-		{
-			name:       "Success_WithoutAvatar",
-			uid:        uuid.New().String(),
-			payload:    validRequest,
-			status:     http.StatusOK,
-			assertions: func(r *httptest.ResponseRecorder) {},
-			expect: func() {
-				mctrl.EXPECT().UpdateUser(
-					gomock.Any(),
-					gomock.Any(),
-					gomock.Any(),
-					gomock.Any(),
-				).Return(nil)
-			},
-		},
-		{
-			name:          "Success_WithValidImage",
-			uid:           uuid.New().String(),
-			payload:       validRequest,
-			withAvatar:    true,
-			avatarContent: []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A},
-			status:        http.StatusOK,
-			assertions:    func(r *httptest.ResponseRecorder) {},
-			expect: func() {
-				mctrl.EXPECT().UpdateUser(
-					gomock.Any(),
-					gomock.Any(),
-					gomock.Any(),
-					gomock.Any(),
-				).Return(nil)
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.expect != nil {
-				tt.expect()
-			}
-
-			body := &bytes.Buffer{}
-			writer := multipart.NewWriter(body)
-			jsonData, err := json.Marshal(tt.payload)
-			if err != nil {
-				writer.WriteField("data", tt.payload.(string))
-			} else {
-				writer.WriteField("data", string(jsonData))
-			}
-
-			if tt.withAvatar && tt.avatarContent != nil {
-				part, err := writer.CreateFormFile("avatar", "test.png")
-				require.NoError(t, err)
-				_, err = part.Write(tt.avatarContent)
-				require.NoError(t, err)
-			}
-
-			require.NoError(t, writer.Close())
-
-			rctx := chi.NewRouteContext()
-			rctx.URLParams.Add("id", tt.uid)
-
-			req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/users/%s", tt.uid), body)
-			req.Header.Set("Content-Type", writer.FormDataContentType())
-
-			ctx := context.WithValue(
-				context.WithValue(
-					req.Context(),
-					chi.RouteCtxKey,
-					rctx,
-				),
-				config.UidKey,
-				tt.uid,
-			)
-			req = req.WithContext(ctx)
-
-			w := httptest.NewRecorder()
-			h.updateUser(w, req)
-			assert.Equal(t, tt.status, w.Result().StatusCode)
-
-			defer func() {
-				assert.Nil(t, w.Result().Body.Close())
-			}()
-
-			if tt.assertions != nil {
-				tt.assertions(w)
-			}
-		})
-	}
-}
-
-func TestHandler_DeleteUser(t *testing.T) {
-	const uriTemplate = "/users/%s"
-	mock := gomock.NewController(t)
-	defer mock.Finish()
-
-	testErr := errors.New("testErr")
-	testUUID := uuid.New()
-	mctrl := mocks.NewMockAppCtrl(mock)
-	mauth := mocks.NewMockCore(mock)
-	h := New(mauth, mctrl)
-
-	tests := []struct {
-		name       string
-		userID     string
-		status     int
-		expect     func()
-		assertions func(r *httptest.ResponseRecorder)
-	}{
-		{
-			name:   "ErrInvalidUUID_Empty",
-			userID: "",
-			status: http.StatusInternalServerError,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Equal(t, hdl.ErrFailedToParseUUID.Error(), res.Errors[0])
-			},
-		},
-		{
-			name:   "ErrInvalidUUID_Format",
-			userID: "invalid-uuid",
-			status: http.StatusInternalServerError,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Equal(t, hdl.ErrFailedToParseUUID.Error(), res.Errors[0])
-			},
-		},
-		{
-			name:   "StatusNotFound",
-			userID: testUUID.String(),
-			status: http.StatusNotFound,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Equal(t, ctrl.ErrNotFound.Error(), res.Errors[0])
-			},
-			expect: func() {
-				mctrl.EXPECT().DeleteUser(
-					gomock.Any(),
-					testUUID,
-				).Return(ctrl.ErrNotFound)
-			},
-		},
-		{
-			name:   "StatusInternalServerError",
-			userID: testUUID.String(),
-			status: http.StatusInternalServerError,
-			assertions: func(r *httptest.ResponseRecorder) {
-				res := &utils.ErrorsResponse{}
-				err := json.NewDecoder(r.Result().Body).Decode(res)
-				assert.Nil(t, err)
-				assert.Equal(t, hdl.ErrInternal.Error(), res.Errors[0])
-			},
-			expect: func() {
-				mctrl.EXPECT().DeleteUser(
-					gomock.Any(),
-					testUUID,
-				).Return(testErr)
-			},
-		},
-		{
-			name:   "Success",
-			userID: testUUID.String(),
-			status: http.StatusNoContent,
-			assertions: func(r *httptest.ResponseRecorder) {
-				assert.Equal(t, http.StatusNoContent, r.Result().StatusCode)
-				assert.Equal(t, 0, r.Body.Len())
-			},
-			expect: func() {
-				mctrl.EXPECT().DeleteUser(
-					gomock.Any(),
-					testUUID,
-				).Return(nil)
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.expect != nil {
-				tt.expect()
-			}
-
-			req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf(uriTemplate, tt.userID), nil)
-
-			rctx := chi.NewRouteContext()
-			rctx.URLParams.Add("id", tt.userID)
-			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-			w := httptest.NewRecorder()
-			h.deleteUser(w, req)
-			assert.Equal(t, tt.status, w.Result().StatusCode)
-
-			defer func() {
-				assert.Nil(t, w.Result().Body.Close())
-			}()
-
-			if tt.assertions != nil {
-				tt.assertions(w)
-			}
 		})
 	}
 }

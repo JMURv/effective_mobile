@@ -1,234 +1,100 @@
 definitions:
-  github_com_JMURv_golang-clean-template_internal_dto.CheckEmailRequest:
+  github_com_JMURv_effective-mobile_internal_dto.CalculateTotalCostRequest:
     properties:
-      email:
+      from:
+        type: string
+      service_name:
+        maxLength: 255
+        minLength: 2
+        type: string
+      to:
+        type: string
+      user_id:
         type: string
     required:
-    - email
+    - from
+    - service_name
+    - to
+    - user_id
     type: object
-  github_com_JMURv_golang-clean-template_internal_dto.CreateUserResponse:
+  github_com_JMURv_effective-mobile_internal_dto.CalculateTotalCostResponse:
     properties:
-      id:
-        type: string
+      total_cost:
+        maximum: 255
+        minimum: 2
+        type: integer
+    required:
+    - total_cost
     type: object
-  github_com_JMURv_golang-clean-template_internal_dto.EmailAndPasswordRequest:
+  github_com_JMURv_effective-mobile_internal_dto.CreateSubscriptionRequest:
     properties:
-      email:
+      end_date:
         type: string
-      password:
+      price:
+        minimum: 0
+        type: integer
+      service_name:
+        maxLength: 255
+        minLength: 2
         type: string
-      token:
+      start_date:
+        type: string
+      user_id:
         type: string
     required:
-    - email
-    - password
-    - token
+    - price
+    - service_name
+    - start_date
+    - user_id
     type: object
-  github_com_JMURv_golang-clean-template_internal_dto.ExistsUserResponse:
+  github_com_JMURv_effective-mobile_internal_dto.UpdateSubscriptionRequest:
     properties:
-      exists:
-        type: boolean
-    type: object
-  github_com_JMURv_golang-clean-template_internal_dto.PaginatedUserResponse:
-    properties:
-      count:
-        type: integer
-      currentPage:
-        type: integer
-      data:
-        items:
-          $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_models.User'
-        type: array
-      hasNextPage:
-        type: boolean
-      totalPages:
-        type: integer
-    type: object
-  github_com_JMURv_golang-clean-template_internal_dto.UpdateDeviceRequest:
-    properties:
-      name:
+      end_date:
         type: string
-    required:
-    - name
+      price:
+        minimum: 0
+        type: integer
+      service_name:
+        maxLength: 255
+        minLength: 2
+        type: string
+      start_date:
+        type: string
     type: object
-  github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse:
+  github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse:
     properties:
       errors:
         items:
           type: string
         type: array
     type: object
-  github_com_JMURv_golang-clean-template_internal_models.Device:
+  github_com_JMURv_effective-mobile_internal_models.Subscription:
     properties:
-      browser:
+      created_at:
         type: string
-      createdAt:
-        type: string
-      deviceType:
+      end_date:
         type: string
       id:
         type: string
-      ip:
+      price:
+        type: integer
+      service_name:
         type: string
-      lastActive:
+      start_date:
         type: string
-      name:
+      updated_at:
         type: string
-      os:
-        type: string
-      ua:
-        type: string
-      userId:
-        type: string
-    type: object
-  github_com_JMURv_golang-clean-template_internal_models.User:
-    properties:
-      avatar:
-        type: string
-      createdAt:
-        type: string
-      devices:
-        items:
-          $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_models.Device'
-        type: array
-      email:
-        type: string
-      id:
-        type: string
-      isActive:
-        type: boolean
-      isEmailVerified:
-        type: boolean
-      name:
-        type: string
-      password:
-        type: string
-      updatedAt:
+      user_id:
         type: string
     type: object
 info:
   contact: {}
 paths:
-  /auth/jwt:
-    post:
-      consumes:
-      - application/json
-      description: Verify reCAPTCHA, then authenticate and set JWT cookies
-      parameters:
-      - description: Client real IP address
-        in: header
-        name: X-Real-IP
-        required: true
-        type: string
-      - description: Client User-Agent
-        in: header
-        name: User-Agent
-        required: true
-        type: string
-      - description: Login credentials
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_dto.EmailAndPasswordRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Successfully authenticated (sets cookies)
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-      summary: Authenticate using email & password
-      tags:
-      - Authentication
-  /auth/jwt/refresh:
-    post:
-      consumes:
-      - application/json
-      description: Validate refresh token from cookie and issue new tokens
-      parameters:
-      - description: Client real IP address
-        in: header
-        name: X-Real-IP
-        required: true
-        type: string
-      - description: Client User-Agent
-        in: header
-        name: User-Agent
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Successfully refreshed tokens (sets cookies)
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-      summary: Refresh JWT tokens
-      tags:
-      - Authentication
-  /auth/logout:
-    post:
-      description: Revoke refresh token, clear JWT cookies
-      parameters:
-      - description: Authorization token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: Revoked refresh token, cleared cookies
-        "404":
-          description: session not found
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-        "500":
-          description: internal error
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-      summary: Logout user
-      tags:
-      - Authentication
-  /device:
+  /subscriptions:
     get:
-      description: Retrieve a list of registered devices for the current user
-      parameters:
-      - description: Authorization token
-        in: header
-        name: Authorization
-        required: true
-        type: string
+      consumes:
+      - application/json
+      description: Get all subscriptions
       produces:
       - application/json
       responses:
@@ -236,33 +102,51 @@ paths:
           description: OK
           schema:
             items:
-              items:
-                $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_models.Device'
-              type: array
+              $ref: '#/definitions/github_com_JMURv_effective-mobile_internal_models.Subscription'
             type: array
-        "404":
-          description: no devices found
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
         "500":
-          description: internal error
+          description: Internal Server Error
           schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-      summary: List all devices for the authenticated user
+            $ref: '#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse'
+      summary: List subscriptions
       tags:
-      - Device
-  /device/{id}:
-    delete:
-      description: Remove a device owned by the current user
+      - subscriptions
+    post:
+      consumes:
+      - application/json
+      description: Create a new subscription
       parameters:
-      - description: Device UUID
+      - description: Subscription payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_JMURv_effective-mobile_internal_dto.CreateSubscriptionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse'
+      summary: Create subscription
+      tags:
+      - subscriptions
+  /subscriptions/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete subscription by ID
+      parameters:
+      - description: Subscription ID
         in: path
         name: id
-        required: true
-        type: string
-      - description: Authorization token
-        in: header
-        name: Authorization
         required: true
         type: string
       produces:
@@ -271,31 +155,28 @@ paths:
         "204":
           description: No Content
         "400":
-          description: invalid device ID
+          description: Bad Request
           schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
+            $ref: '#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse'
         "404":
-          description: device not found
+          description: Not Found
           schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
+            $ref: '#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse'
         "500":
-          description: internal error
+          description: Internal Server Error
           schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-      summary: Delete a device
+            $ref: '#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse'
+      summary: Delete subscription
       tags:
-      - Device
+      - subscriptions
     get:
-      description: Retrieve details of a device owned by the current user
+      consumes:
+      - application/json
+      description: Get a single subscription by UUID
       parameters:
-      - description: Device UUID
+      - description: Subscription ID
         in: path
         name: id
-        required: true
-        type: string
-      - description: Authorization token
-        in: header
-        name: Authorization
         required: true
         type: string
       produces:
@@ -304,290 +185,86 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_models.Device'
+            $ref: '#/definitions/github_com_JMURv_effective-mobile_internal_models.Subscription'
         "400":
-          description: invalid device ID path parameter
+          description: Bad Request
           schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
+            $ref: '#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse'
         "404":
-          description: device not found
+          description: Not Found
           schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
+            $ref: '#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse'
         "500":
-          description: internal error
+          description: Internal Server Error
           schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-      summary: Get a specific device by ID
+            $ref: '#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse'
+      summary: Get subscription by ID
       tags:
-      - Device
+      - subscriptions
     put:
       consumes:
       - application/json
-      description: Modify properties of a device owned by the current user
+      description: Update subscription by ID
       parameters:
-      - description: Device UUID
+      - description: Subscription ID
         in: path
         name: id
         required: true
         type: string
       - description: Update payload
         in: body
-        name: body
+        name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_dto.UpdateDeviceRequest'
-      - description: Authorization token
-        in: header
-        name: Authorization
-        required: true
-        type: string
+          $ref: '#/definitions/github_com_JMURv_effective-mobile_internal_dto.UpdateSubscriptionRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
         "400":
-          description: invalid device ID or payload
+          description: Bad Request
           schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
+            $ref: '#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse'
         "404":
-          description: device not found
+          description: Not Found
           schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
+            $ref: '#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse'
         "500":
-          description: internal error
+          description: Internal Server Error
           schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-      summary: Update a device
+            $ref: '#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse'
+      summary: Update subscription
       tags:
-      - Device
-  /users:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve a paginated list of users with optional filters
-      parameters:
-      - default: 1
-        description: Page number
-        in: query
-        name: page
-        type: integer
-      - default: 20
-        description: Page size
-        in: query
-        name: size
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_dto.PaginatedUserResponse'
-            type: array
-        "500":
-          description: internal error
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-      summary: List all users
-      tags:
-      - User
-    post:
-      consumes:
-      - multipart/form-data
-      description: Creates a user with optional avatar upload
-      parameters:
-      - description: JSON payload in 'data' field
-        in: formData
-        name: data
-        required: true
-        type: string
-      - description: Avatar image file
-        in: formData
-        name: avatar
-        type: file
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_dto.CreateUserResponse'
-        "400":
-          description: bad request or file too large
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-        "409":
-          description: user already exists
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-        "500":
-          description: internal error
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-      summary: Create a new user
-      tags:
-      - User
-  /users/{id}:
-    delete:
-      consumes:
-      - application/json
-      description: Removes a user by UUID
-      parameters:
-      - description: User UUID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "204":
-          description: No Content
-        "401":
-          description: unauthorized
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-        "404":
-          description: user not found
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-        "500":
-          description: internal error
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-      summary: Delete a user
-      tags:
-      - User
-    get:
-      consumes:
-      - application/json
-      description: Retrieve a user by their UUID
-      parameters:
-      - description: User UUID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_models.User'
-        "400":
-          description: invalid UUID
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-        "404":
-          description: user not found
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-        "500":
-          description: internal error
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-      summary: Get user by ID
-      tags:
-      - User
-    put:
-      consumes:
-      - multipart/form-data
-      description: Updates user profile and avatar
-      parameters:
-      - description: User UUID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: JSON payload in 'data' field
-        in: formData
-        name: data
-        required: true
-        type: string
-      - description: Avatar image file
-        in: formData
-        name: avatar
-        type: file
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-        "400":
-          description: bad request
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-        "401":
-          description: unauthorized
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-        "404":
-          description: user not found
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-        "500":
-          description: internal error
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-      summary: Update an existing user
-      tags:
-      - User
-  /users/exists:
+      - subscriptions
+  /subscriptions/total:
     post:
       consumes:
       - application/json
-      description: Returns 200 if user exists, 404 otherwise
+      description: Calculate total cost for subscriptions within a period
       parameters:
-      - description: Email payload
+      - description: Calculation payload
         in: body
-        name: body
+        name: request
         required: true
         schema:
-          $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_dto.CheckEmailRequest'
+          $ref: '#/definitions/github_com_JMURv_effective-mobile_internal_dto.CalculateTotalCostRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_dto.ExistsUserResponse'
-        "404":
-          description: user not found
+            $ref: '#/definitions/github_com_JMURv_effective-mobile_internal_dto.CalculateTotalCostResponse'
+        "400":
+          description: Bad Request
           schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
+            $ref: '#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse'
         "500":
-          description: internal error
+          description: Internal Server Error
           schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-      summary: Check if a user exists by email
+            $ref: '#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse'
+      summary: Calculate total subscription cost
       tags:
-      - User
-  /users/me:
-    get:
-      description: Returns the authenticated user's profile
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_models.User'
-        "401":
-          description: unauthorized
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-        "404":
-          description: user not found
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-        "500":
-          description: internal error
-          schema:
-            $ref: '#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse'
-      summary: Retrieve current user profile
-      tags:
-      - User
+      - subscriptions
 swagger: "2.0"

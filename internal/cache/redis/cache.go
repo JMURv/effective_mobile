@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/JMURv/golang-clean-template/internal/cache"
-	"github.com/JMURv/golang-clean-template/internal/config"
+	"github.com/JMURv/effective-mobile/internal/cache"
+	"github.com/JMURv/effective-mobile/internal/config"
 	"github.com/go-redis/redis/v8"
 	"github.com/goccy/go-json"
 	ot "github.com/opentracing/opentracing-go"

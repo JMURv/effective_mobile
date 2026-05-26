@@ -1,4 +1,4 @@
-module github.com/JMURv/golang-clean-template
+module github.com/JMURv/effective-mobile
 
 go 1.26.3
 

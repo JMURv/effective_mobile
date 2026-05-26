@@ -11,7 +11,7 @@ import (
 type Config struct {
 	LogLvl      string `env:"LOG_LEVEL"    envDefault:"debug"`
 	Mode        string `env:"MODE"         envDefault:"dev"`
-	ServiceName string `env:"SERVICE_NAME" envDefault:"app-template"`
+	ServiceName string `env:"SERVICE_NAME" envDefault:"effective-mobile"`
 	Server      ServerConfig
 	DB          dbConfig
 	Redis       redisConfig
@@ -51,15 +51,14 @@ type jaegerConfig struct {
 	} `yaml:"reporter"`
 }
 
-func MustLoad() Config {
-	const defaultPath = "config/.env"
-	if err := godotenv.Load(defaultPath); err != nil {
+func MustLoad(path string) Config {
+	if err := godotenv.Load(path); err != nil {
 		if !os.IsNotExist(err) {
 			panic("failed to load .env file: " + err.Error())
 		}
 		log.Println("No .env file found, using system environment variables")
 	} else {
-		log.Println("Loaded environment variables from: " + defaultPath)
+		log.Println("Loaded environment variables from: " + path)
 	}
 
 	conf := Config{}

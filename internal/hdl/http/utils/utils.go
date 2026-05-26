@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/JMURv/golang-clean-template/internal/ctrl"
-	"github.com/JMURv/golang-clean-template/internal/hdl"
-	"github.com/JMURv/golang-clean-template/internal/hdl/validation"
+	"github.com/JMURv/effective-mobile/internal/ctrl"
+	"github.com/JMURv/effective-mobile/internal/hdl"
+	"github.com/JMURv/effective-mobile/internal/hdl/validation"
 	"github.com/go-playground/validator/v10"
 	"github.com/goccy/go-json"
 	"go.uber.org/zap"
@@ -58,6 +58,7 @@ func ErrResponse(w http.ResponseWriter, statusCode int, err error) {
 
 func ParseAndValidate(w http.ResponseWriter, r *http.Request, dst any) bool {
 	var err error
+
 	if err = json.NewDecoder(r.Body).Decode(dst); err != nil {
 		zap.L().Error(
 			hdl.ErrDecodeRequest.Error(),

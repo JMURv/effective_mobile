@@ -4,8 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 
-	"github.com/JMURv/golang-clean-template/internal/config"
+	"github.com/JMURv/effective-mobile/internal/config"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
 	"github.com/pressly/goose/v3"
@@ -64,7 +65,12 @@ func applyMigrations(db *sql.DB) error {
 		return err
 	}
 
-	err = goose.Up(db, "migrations")
+	path := "migrations"
+	if envPath := os.Getenv("MIGRATIONS_PATH"); envPath != "" {
+		path = envPath
+	}
+
+	err = goose.Up(db, path)
 	if err != nil {
 		return err
 	}

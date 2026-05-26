@@ -1,7 +1,7 @@
 version: 3
 
 vars:
-  PROJECT_NAME: "app-template"
+  PROJECT_NAME: "effective-mobile"
   DEV_ENV_PATH: "build/configs/envs/.env.dev"
   DEV_DC_PATH: "compose-dev.yaml"
 
@@ -66,44 +66,43 @@ tasks:
     desc: Generate mocks
     cmds:
       - 'mockgen -source="./internal/ctrl/ctrl.go" -destination="tests/mocks/mock_ctrl.go" -package=mocks'
-      - 'mockgen -source="./internal/auth/auth.go" -destination="tests/mocks/mock_auth.go" -package=mocks'
   # END
 
   # DOCKER
   dc-prod:
     desc: Run prod compose
     cmds:
-      - "docker compose --env-file {{.PROD_ENV_PATH}} -f {{.PROD_DC_PATH}} up --watch"
+      - "docker compose --env-file {{.PROD_ENV_PATH}} -f {{.PROD_DC_PATH}} --profile app up --watch"
 
   dc-prod-build:
     desc: Build prod compose
     cmds:
-      - "docker compose --env-file {{.PROD_ENV_PATH}} -f {{.PROD_DC_PATH}} up --build --watch"
+      - "docker compose --env-file {{.PROD_ENV_PATH}} -f {{.PROD_DC_PATH}} --profile app up --build --watch"
 
   dc-prod-down:
     desc: Shutdown prod compose
     cmds:
-      - "docker compose --env-file {{.PROD_ENV_PATH}} -f {{.PROD_DC_PATH}} down"
+      - "docker compose --env-file {{.PROD_ENV_PATH}} -f {{.PROD_DC_PATH}} --profile app down"
 
   dc-prod-obs:
     desc: Run prod compose with observe
     cmds:
-      - "docker compose --env-file {{.PROD_ENV_PATH}} -f {{.PROD_DC_PATH}} --profile observe up --watch"
+      - "docker compose --env-file {{.PROD_ENV_PATH}} -f {{.PROD_DC_PATH}} --profile observe --profile app up --watch"
 
   dc-prod-obs-down:
     desc: Shutdown prod compose with observe containers
     cmds:
-      - "docker compose --env-file {{.PROD_ENV_PATH}} -f {{.PROD_DC_PATH}} --profile observe down"
+      - "docker compose --env-file {{.PROD_ENV_PATH}} -f {{.PROD_DC_PATH}} --profile observe --profile app down"
 
   dc-dev:
     desc: Run dev compose
     cmds:
-      - "docker compose --env-file {{.DEV_ENV_PATH}} -f {{.DEV_DC_PATH}} up --watch"
+      - "docker compose --env-file {{.DEV_ENV_PATH}} -f {{.DEV_DC_PATH}} --profile app up --watch"
 
   dc-dev-build:
     desc: Run dev compose
     cmds:
-      - "docker compose --env-file {{.DEV_ENV_PATH}} -f {{.DEV_DC_PATH}} up --build --watch"
+      - "docker compose --env-file {{.DEV_ENV_PATH}} -f {{.DEV_DC_PATH}} --profile app up --build --watch"
 
   dc-dev-deps:
     desc: Run dev compose without app
@@ -118,45 +117,12 @@ tasks:
   dc-dev-obs:
     desc: Run dev compose with observe
     cmds:
-      - "docker compose --env-file {{.DEV_ENV_PATH}} -f {{.DEV_DC_PATH}} --profile observe up --watch"
+      - "docker compose --env-file {{.DEV_ENV_PATH}} -f {{.DEV_DC_PATH}} --profile observe --profile app up --watch"
 
   dc-dev-obs-down:
     desc: Shutdown dev compose with observe containers
     cmds:
-      - "docker compose --env-file {{.DEV_ENV_PATH}} -f {{.DEV_DC_PATH}} --profile observe down"
-
-  dc-k6:
-    desc: Run k6 compose
-    cmds:
-      - "docker compose --env-file {{.K6_ENV_PATH}} -f {{.K6_DC_PATH}} --profile observe up"
-      - "task dc-k6-down"
-
-  dc-k6-build:
-    desc: Build k6 containers
-    cmds:
-      - "docker compose --env-file {{.K6_ENV_PATH}} -f {{.K6_DC_PATH}} build"
-
-  dc-k6-down:
-    desc: Shutdown k6 containers
-    cmds:
-      - "docker compose --env-file {{.K6_ENV_PATH}} -f {{.K6_DC_PATH}} --profile observe down -v"
-
-  # END
-
-  # K8s
-  k-up:
-    desc: Run k8s manifests
-    cmds:
-      - "kubectl apply -f build/k8s/cfg/cfg.yaml"
-      - "kubectl apply -f build/k8s/cfg/secret.yaml"
-      - "kubectl apply -f build/k8s/deploy.yaml"
-
-  k-down:
-    desc: Remove k8s manifests
-    cmds:
-      - "kubectl delete -f build/k8s/cfg/cfg.yaml"
-      - "kubectl delete -f build/k8s/cfg/secret.yaml"
-      - "kubectl delete -f build/k8s/deploy.yaml"
+      - "docker compose --env-file {{.DEV_ENV_PATH}} -f {{.DEV_DC_PATH}} --profile observe --profile app down"
   # END
 
   # TESTS
@@ -172,19 +138,12 @@ tasks:
     desc: Test handlers
     cmds:
       - "task t-http"
-      - "task t-grpc"
 
   t-http:
     desc: Test http handlers
     cmds:
       - "go test ./internal/hdl/http -v"
       - "go test -coverprofile=cov_http.out ./internal/hdl/http && go tool cover -func=cov_http.out"
-
-  t-grpc:
-    desc: Test grpc handlers
-    cmds:
-      - "go test ./internal/hdl/grpc -v"
-      - "go test -coverprofile=cov_grpc.out ./internal/hdl/grpc && go tool cover -func=cov_grpc.out"
 
   t-ctrl:
     desc: Run ctrl tests

@@ -6,61 +6,32 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strings"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/JMURv/golang-clean-template/internal/cache/redis"
-	"github.com/JMURv/golang-clean-template/internal/config"
-	"github.com/JMURv/golang-clean-template/internal/ctrl"
-	hdl "github.com/JMURv/golang-clean-template/internal/hdl/http"
-	"github.com/JMURv/golang-clean-template/internal/repo/db"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/go-connections/nat"
-	"github.com/jackc/pgx/v5"
+	"github.com/JMURv/effective-mobile/internal/cache/redis"
+	"github.com/JMURv/effective-mobile/internal/config"
+	"github.com/JMURv/effective-mobile/internal/ctrl"
+	hdl "github.com/JMURv/effective-mobile/internal/hdl/http"
+	"github.com/JMURv/effective-mobile/internal/hdl/validation"
+	"github.com/JMURv/effective-mobile/internal/repo/db"
+	"github.com/moby/moby/api/types/container"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
-
-// TODO:
-
-const getTables = `
-SELECT tablename 
-FROM pg_tables 
-WHERE schemaname = 'public';
-`
 
 var rootDir = filepath.Join("..", "..", "..")
 
-var conf config.Config
-
-var (
-	redisC testcontainers.Container
-	minioC testcontainers.Container
-	pgC    testcontainers.Container
-)
-
-func getRedis() testcontainers.Container {
-	ctx := context.Background()
+func getRedis(ctx context.Context) testcontainers.Container {
 	req := testcontainers.ContainerRequest{
-		Image:        "redis:alpine",
+		Image:        "redis:8.0.3-alpine",
 		ExposedPorts: []string{"6379/tcp"},
 		WaitingFor:   wait.ForLog("Ready to accept connections"),
-		HostConfigModifier: func(hostConfig *container.HostConfig) {
-			hostConfig.PortBindings = nat.PortMap{
-				"6379/tcp": []nat.PortBinding{
-					{
-						HostIP:   "0.0.0.0",
-						HostPort: "6379",
-					},
-				},
-			}
-		},
 	}
 
-	redisC, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Started:          true,
 	})
@@ -68,16 +39,15 @@ func getRedis() testcontainers.Container {
 		panic(err)
 	}
 
-	return redisC
+	return c
 }
 
-func getPostgres() testcontainers.Container {
-	ctx := context.Background()
+func getPostgres(ctx context.Context) testcontainers.Container {
 	pgPort := os.Getenv("POSTGRES_PORT")
 	pgPortC := fmt.Sprintf("%s/tcp", pgPort)
 
 	req := testcontainers.ContainerRequest{
-		Image:        "postgres:17.4-alpine",
+		Image:        "postgres:18.1-alpine",
 		WaitingFor:   wait.ForHealthCheck(),
 		ExposedPorts: []string{pgPortC},
 		ConfigModifier: func(conf *container.Config) {
@@ -94,16 +64,6 @@ func getPostgres() testcontainers.Container {
 				Timeout:     2 * time.Second,
 				Retries:     5,
 				StartPeriod: 2 * time.Second,
-			}
-		},
-		HostConfigModifier: func(hostConfig *container.HostConfig) {
-			hostConfig.PortBindings = nat.PortMap{
-				nat.Port(pgPortC): []nat.PortBinding{
-					{
-						HostIP:   "0.0.0.0",
-						HostPort: pgPort,
-					},
-				},
 			}
 		},
 		Env: map[string]string{
@@ -126,142 +86,128 @@ func getPostgres() testcontainers.Container {
 	return pgC
 }
 
-func getMinio() testcontainers.Container {
-	ctx := context.Background()
-	req := testcontainers.ContainerRequest{
-		Image: "minio/minio:RELEASE.2025-06-13T11-33-47Z",
-		Cmd:   []string{"server", "/data", "--console-address", ":9001"},
-		WaitingFor: wait.ForAll(
-			wait.ForListeningPort("9000/tcp"),
-			wait.ForHTTP("/minio/health/ready").WithPort("9000/tcp"),
-		),
-		ExposedPorts: []string{"9000/tcp", "9001/tcp"},
-		Env: map[string]string{
-			"MINIO_ROOT_USER":            os.Getenv("MINIO_ROOT_USER"),
-			"MINIO_ROOT_PASSWORD":        os.Getenv("MINIO_ROOT_PASSWORD"),
-			"MINIO_PROMETHEUS_AUTH_TYPE": "public",
-		},
-		HostConfigModifier: func(hostConfig *container.HostConfig) {
-			hostConfig.PortBindings = nat.PortMap{
-				"9000/tcp": []nat.PortBinding{
-					{
-						HostIP:   "0.0.0.0",
-						HostPort: "9000",
-					},
-				},
-				"9001/tcp": []nat.PortBinding{
-					{
-						HostIP:   "0.0.0.0",
-						HostPort: "9001",
-					},
-				},
-			}
-		},
-	}
-
-	minioC, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	if err != nil {
-		panic(err)
-	}
-
-	return minioC
-}
-
-func setupTestServer() (*httptest.Server, func(t *testing.T)) {
+func getServer(conf config.Config) *httptest.Server {
 	zap.ReplaceGlobals(zap.Must(zap.NewDevelopment()))
 
-	au := auth.New(conf)
-	cache := redis.New(conf)
-	repo := db.New(conf)
-	svc := ctrl.New(au, repo, cache, s3.New(conf), smtp.New(conf))
-	h := hdl.New(au, svc)
-
-	ts := httptest.NewServer(h.Router)
-
-	cleanupFunc := func(t *testing.T) {
-		ctx := context.Background()
-		ts.Close()
-
-		conn, err := pgx.Connect(ctx, fmt.Sprintf(
-			"postgres://%s:%s@%s:%d/%s?sslmode=disable",
-			conf.DB.User,
-			conf.DB.Password,
-			conf.DB.Host,
-			conf.DB.Port,
-			conf.DB.Database,
-		))
-		if err != nil {
-			zap.L().Fatal("Failed to connect to the database", zap.Error(err))
-		}
-
-		if err = conn.Ping(ctx); err != nil {
-			zap.L().Fatal("Failed to ping the database", zap.Error(err))
-		}
-
-		rows, err := conn.Query(ctx, getTables)
-		if err != nil {
-			zap.L().Fatal("Failed to fetch table names", zap.Error(err))
-		}
-		defer func(rows pgx.Rows) {
-			rows.Close()
-		}(rows)
-
-		var tables []string
-		for rows.Next() {
-			var name string
-			if err := rows.Scan(&name); err != nil {
-				zap.L().Fatal("Failed to scan table name", zap.Error(err))
-			}
-			tables = append(tables, name)
-		}
-
-		if len(tables) == 0 {
-			return
-		}
-
-		_, err = conn.Exec(
-			ctx,
-			fmt.Sprintf("TRUNCATE TABLE %v RESTART IDENTITY CASCADE;", strings.Join(tables, ", ")),
-		)
-		if err != nil {
-			zap.L().Fatal("Failed to truncate tables", zap.Error(err))
-		}
-	}
-
-	return ts, cleanupFunc
+	svc := ctrl.New(db.New(conf), redis.New(conf))
+	h := hdl.New(svc)
+	return httptest.NewServer(h.Router)
 }
 
-func init() {
-	conf = config.MustLoad(
-		filepath.ToSlash(
-			filepath.Join(rootDir, "config", ".env.integration"),
-		),
-	)
+type TestEnv struct {
+	Cache    testcontainers.Container
+	Postgres testcontainers.Container
+	Server   *httptest.Server
+}
 
-	_ = os.Setenv("MIGRATIONS_PATH", filepath.ToSlash(
+func NewTestEnv(t *testing.T) *TestEnv {
+	t.Helper()
+
+	ctx := context.Background()
+
+	t.Setenv("MIGRATIONS_PATH", filepath.ToSlash(
 		filepath.Join(rootDir, "migrations"),
 	))
 
-	wg := &sync.WaitGroup{}
-	wg.Add(3)
+	validation.New()
 
-	go func() {
-		redisC = getRedis()
-		wg.Done()
-	}()
+	conf := config.MustLoad(
+		filepath.ToSlash(
+			filepath.Join(rootDir, "build", "configs", "envs", ".env.integration"),
+		),
+	)
 
-	go func() {
-		minioC = getMinio()
-		wg.Done()
-	}()
+	env := &TestEnv{}
 
-	go func() {
-		pgC = getPostgres()
-		wg.Done()
-	}()
+	errg := errgroup.Group{}
 
-	wg.Wait()
+	errg.Go(func() error {
+		pg := getPostgres(ctx)
+		env.Postgres = pg
+
+		pgHost, err := pg.Host(ctx)
+		if err != nil {
+			zap.L().Error("failed to get pg host", zap.Error(err))
+			return err
+		}
+
+		pgPort, err := pg.MappedPort(ctx, "5432/tcp")
+		if err != nil {
+			zap.L().Error("failed to get pg port", zap.Error(err))
+			return err
+		}
+
+		conf.DB.Host = pgHost
+		conf.DB.Port = int(pgPort.Num())
+		return nil
+	})
+
+	errg.Go(func() error {
+		cache := getRedis(ctx)
+		env.Cache = cache
+
+		cacheHost, err := cache.Host(ctx)
+		if err != nil {
+			zap.L().Error("failed to get cache host", zap.Error(err))
+			return err
+		}
+
+		cachePort, err := cache.MappedPort(ctx, "6379/tcp")
+		if err != nil {
+			zap.L().Error("failed to get cache port", zap.Error(err))
+			return err
+		}
+
+		conf.Redis.Addr = fmt.Sprintf("%s:%s", cacheHost, cachePort.Port())
+
+		return nil
+	})
+
+	if err := errg.Wait(); err != nil {
+		t.Fatal(err)
+	}
+
+	env.Server = getServer(conf)
+
+	t.Cleanup(func() {
+		env.Teardown(ctx, t)
+	})
+
+	return env
+}
+
+func (e *TestEnv) Teardown(ctx context.Context, t *testing.T) {
+	t.Helper()
+
+	if e.Server != nil {
+		e.Server.Close()
+	}
+
+	errg := errgroup.Group{}
+
+	errg.Go(func() error {
+		if e.Cache != nil {
+			if err := e.Cache.Terminate(ctx); err != nil {
+				zap.L().Error("failed to terminate cache container", zap.Error(err))
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	errg.Go(func() error {
+		if e.Postgres != nil {
+			if err := e.Postgres.Terminate(ctx); err != nil {
+				zap.L().Error("failed to terminate postgres container", zap.Error(err))
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	if err := errg.Wait(); err != nil {
+		t.Fatal(err)
+	}
 }

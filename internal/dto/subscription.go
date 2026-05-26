@@ -29,5 +29,5 @@ type CalculateTotalCostRequest struct {
 }
 
 type CalculateTotalCostResponse struct {
-	TotalCost int64 `json:"service_name" validate:"required,min=2,max=255"`
+	TotalCost int64 `json:"total_cost" validate:"required,min=2,max=255"`
 }

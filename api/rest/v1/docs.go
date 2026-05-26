@@ -15,275 +15,39 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/auth/jwt": {
-            "post": {
-                "description": "Verify reCAPTCHA, then authenticate and set JWT cookies",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Authentication"
-                ],
-                "summary": "Authenticate using email \u0026 password",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Client real IP address",
-                        "name": "X-Real-IP",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Client User-Agent",
-                        "name": "User-Agent",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "description": "Login credentials",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_dto.EmailAndPasswordRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successfully authenticated (sets cookies)"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/jwt/refresh": {
-            "post": {
-                "description": "Validate refresh token from cookie and issue new tokens",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Authentication"
-                ],
-                "summary": "Refresh JWT tokens",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Client real IP address",
-                        "name": "X-Real-IP",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Client User-Agent",
-                        "name": "User-Agent",
-                        "in": "header",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Successfully refreshed tokens (sets cookies)"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/logout": {
-            "post": {
-                "description": "Revoke refresh token, clear JWT cookies",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Authentication"
-                ],
-                "summary": "Logout user",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Authorization token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Revoked refresh token, cleared cookies"
-                    },
-                    "404": {
-                        "description": "session not found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "internal error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/device": {
+        "/subscriptions": {
             "get": {
-                "description": "Retrieve a list of registered devices for the current user",
+                "description": "Get all subscriptions",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Device"
+                    "subscriptions"
                 ],
-                "summary": "List all devices for the authenticated user",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Authorization token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    }
-                ],
+                "summary": "List subscriptions",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "type": "array",
                             "items": {
-                                "type": "array",
-                                "items": {
-                                    "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_models.Device"
-                                }
+                                "$ref": "#/definitions/github_com_JMURv_effective-mobile_internal_models.Subscription"
                             }
                         }
                     },
-                    "404": {
-                        "description": "no devices found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    },
                     "500": {
-                        "description": "internal error",
+                        "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/device/{id}": {
-            "get": {
-                "description": "Retrieve details of a device owned by the current user",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Device"
-                ],
-                "summary": "Get a specific device by ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Device UUID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Authorization token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_models.Device"
-                        }
-                    },
-                    "400": {
-                        "description": "invalid device ID path parameter",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "device not found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "internal error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
+                            "$ref": "#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse"
                         }
                     }
                 }
             },
-            "put": {
-                "description": "Modify properties of a device owned by the current user",
+            "post": {
+                "description": "Create a new subscription",
                 "consumes": [
                     "application/json"
                 ],
@@ -291,32 +55,162 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Device"
+                    "subscriptions"
                 ],
-                "summary": "Update a device",
+                "summary": "Create subscription",
+                "parameters": [
+                    {
+                        "description": "Subscription payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_JMURv_effective-mobile_internal_dto.CreateSubscriptionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/subscriptions/total": {
+            "post": {
+                "description": "Calculate total cost for subscriptions within a period",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "subscriptions"
+                ],
+                "summary": "Calculate total subscription cost",
+                "parameters": [
+                    {
+                        "description": "Calculation payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_JMURv_effective-mobile_internal_dto.CalculateTotalCostRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_JMURv_effective-mobile_internal_dto.CalculateTotalCostResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/subscriptions/{id}": {
+            "get": {
+                "description": "Get a single subscription by UUID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "subscriptions"
+                ],
+                "summary": "Get subscription by ID",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Device UUID",
+                        "description": "Subscription ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_JMURv_effective-mobile_internal_models.Subscription"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update subscription by ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "subscriptions"
+                ],
+                "summary": "Update subscription",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Subscription ID",
                         "name": "id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "description": "Update payload",
-                        "name": "body",
+                        "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_dto.UpdateDeviceRequest"
+                            "$ref": "#/definitions/github_com_JMURv_effective-mobile_internal_dto.UpdateSubscriptionRequest"
                         }
-                    },
-                    {
-                        "type": "string",
-                        "description": "Authorization token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
                     }
                 ],
                 "responses": {
@@ -324,78 +218,27 @@ const docTemplate = `{
                         "description": "OK"
                     },
                     "400": {
-                        "description": "invalid device ID or payload",
+                        "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
+                            "$ref": "#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse"
                         }
                     },
                     "404": {
-                        "description": "device not found",
+                        "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
+                            "$ref": "#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse"
                         }
                     },
                     "500": {
-                        "description": "internal error",
+                        "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
+                            "$ref": "#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse"
                         }
                     }
                 }
             },
             "delete": {
-                "description": "Remove a device owned by the current user",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Device"
-                ],
-                "summary": "Delete a device",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Device UUID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Authorization token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "invalid device ID",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "device not found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "internal error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/users": {
-            "get": {
-                "description": "Retrieve a paginated list of users with optional filters",
+                "description": "Delete subscription by ID",
                 "consumes": [
                     "application/json"
                 ],
@@ -403,311 +246,13 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "User"
+                    "subscriptions"
                 ],
-                "summary": "List all users",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "Page number",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 20,
-                        "description": "Page size",
-                        "name": "size",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_dto.PaginatedUserResponse"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "internal error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "Creates a user with optional avatar upload",
-                "consumes": [
-                    "multipart/form-data"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "User"
-                ],
-                "summary": "Create a new user",
+                "summary": "Delete subscription",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "JSON payload in 'data' field",
-                        "name": "data",
-                        "in": "formData",
-                        "required": true
-                    },
-                    {
-                        "type": "file",
-                        "description": "Avatar image file",
-                        "name": "avatar",
-                        "in": "formData"
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_dto.CreateUserResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "bad request or file too large",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    },
-                    "409": {
-                        "description": "user already exists",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "internal error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/users/exists": {
-            "post": {
-                "description": "Returns 200 if user exists, 404 otherwise",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "User"
-                ],
-                "summary": "Check if a user exists by email",
-                "parameters": [
-                    {
-                        "description": "Email payload",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_dto.CheckEmailRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_dto.ExistsUserResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "user not found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "internal error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/users/me": {
-            "get": {
-                "description": "Returns the authenticated user's profile",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "User"
-                ],
-                "summary": "Retrieve current user profile",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_models.User"
-                        }
-                    },
-                    "401": {
-                        "description": "unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "user not found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "internal error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/users/{id}": {
-            "get": {
-                "description": "Retrieve a user by their UUID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "User"
-                ],
-                "summary": "Get user by ID",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "User UUID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_models.User"
-                        }
-                    },
-                    "400": {
-                        "description": "invalid UUID",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "user not found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "internal error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "description": "Updates user profile and avatar",
-                "consumes": [
-                    "multipart/form-data"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "User"
-                ],
-                "summary": "Update an existing user",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "User UUID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "JSON payload in 'data' field",
-                        "name": "data",
-                        "in": "formData",
-                        "required": true
-                    },
-                    {
-                        "type": "file",
-                        "description": "Avatar image file",
-                        "name": "avatar",
-                        "in": "formData"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK"
-                    },
-                    "400": {
-                        "description": "bad request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "user not found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "internal error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "description": "Removes a user by UUID",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "User"
-                ],
-                "summary": "Delete a user",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "User UUID",
+                        "description": "Subscription ID",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -717,22 +262,22 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     },
-                    "401": {
-                        "description": "unauthorized",
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
+                            "$ref": "#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse"
                         }
                     },
                     "404": {
-                        "description": "user not found",
+                        "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
+                            "$ref": "#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse"
                         }
                     },
                     "500": {
-                        "description": "internal error",
+                        "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse"
+                            "$ref": "#/definitions/github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse"
                         }
                     }
                 }
@@ -740,87 +285,94 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "github_com_JMURv_golang-clean-template_internal_dto.CheckEmailRequest": {
+        "github_com_JMURv_effective-mobile_internal_dto.CalculateTotalCostRequest": {
             "type": "object",
             "required": [
-                "email"
+                "from",
+                "service_name",
+                "to",
+                "user_id"
             ],
             "properties": {
-                "email": {
+                "from": {
+                    "type": "string"
+                },
+                "service_name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 2
+                },
+                "to": {
+                    "type": "string"
+                },
+                "user_id": {
                     "type": "string"
                 }
             }
         },
-        "github_com_JMURv_golang-clean-template_internal_dto.CreateUserResponse": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_JMURv_golang-clean-template_internal_dto.EmailAndPasswordRequest": {
+        "github_com_JMURv_effective-mobile_internal_dto.CalculateTotalCostResponse": {
             "type": "object",
             "required": [
-                "email",
-                "password",
-                "token"
+                "total_cost"
             ],
             "properties": {
-                "email": {
-                    "type": "string"
-                },
-                "password": {
-                    "type": "string"
-                },
-                "token": {
-                    "type": "string"
+                "total_cost": {
+                    "type": "integer",
+                    "maximum": 255,
+                    "minimum": 2
                 }
             }
         },
-        "github_com_JMURv_golang-clean-template_internal_dto.ExistsUserResponse": {
-            "type": "object",
-            "properties": {
-                "exists": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "github_com_JMURv_golang-clean-template_internal_dto.PaginatedUserResponse": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer"
-                },
-                "currentPage": {
-                    "type": "integer"
-                },
-                "data": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_models.User"
-                    }
-                },
-                "hasNextPage": {
-                    "type": "boolean"
-                },
-                "totalPages": {
-                    "type": "integer"
-                }
-            }
-        },
-        "github_com_JMURv_golang-clean-template_internal_dto.UpdateDeviceRequest": {
+        "github_com_JMURv_effective-mobile_internal_dto.CreateSubscriptionRequest": {
             "type": "object",
             "required": [
-                "name"
+                "price",
+                "service_name",
+                "start_date",
+                "user_id"
             ],
             "properties": {
-                "name": {
+                "end_date": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "service_name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 2
+                },
+                "start_date": {
+                    "type": "string"
+                },
+                "user_id": {
                     "type": "string"
                 }
             }
         },
-        "github_com_JMURv_golang-clean-template_internal_hdl_http_utils.ErrorsResponse": {
+        "github_com_JMURv_effective-mobile_internal_dto.UpdateSubscriptionRequest": {
+            "type": "object",
+            "properties": {
+                "end_date": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "service_name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 2
+                },
+                "start_date": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_JMURv_effective-mobile_internal_hdl_http_utils.ErrorsResponse": {
             "type": "object",
             "properties": {
                 "errors": {
@@ -831,75 +383,31 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_JMURv_golang-clean-template_internal_models.Device": {
+        "github_com_JMURv_effective-mobile_internal_models.Subscription": {
             "type": "object",
             "properties": {
-                "browser": {
+                "created_at": {
                     "type": "string"
                 },
-                "createdAt": {
-                    "type": "string"
-                },
-                "deviceType": {
+                "end_date": {
                     "type": "string"
                 },
                 "id": {
                     "type": "string"
                 },
-                "ip": {
+                "price": {
+                    "type": "integer"
+                },
+                "service_name": {
                     "type": "string"
                 },
-                "lastActive": {
+                "start_date": {
                     "type": "string"
                 },
-                "name": {
+                "updated_at": {
                     "type": "string"
                 },
-                "os": {
-                    "type": "string"
-                },
-                "ua": {
-                    "type": "string"
-                },
-                "userId": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_JMURv_golang-clean-template_internal_models.User": {
-            "type": "object",
-            "properties": {
-                "avatar": {
-                    "type": "string"
-                },
-                "createdAt": {
-                    "type": "string"
-                },
-                "devices": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_JMURv_golang-clean-template_internal_models.Device"
-                    }
-                },
-                "email": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "isActive": {
-                    "type": "boolean"
-                },
-                "isEmailVerified": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "password": {
-                    "type": "string"
-                },
-                "updatedAt": {
+                "user_id": {
                     "type": "string"
                 }
             }

@@ -5,10 +5,11 @@ import (
 	"net/http"
 	"time"
 
-	metrics "github.com/JMURv/golang-clean-template/internal/observability/metrics/prometheus"
+	metrics "github.com/JMURv/effective-mobile/internal/observability/metrics/prometheus"
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 )
+
 type LoggingResponseWriter struct {
 	http.ResponseWriter
 	statusCode int

@@ -7,7 +7,7 @@ import (
 )
 
 type Subscription struct {
-	ID          int64      `db:"id"           json:"id"`
+	ID          uuid.UUID  `db:"id"           json:"id"`
 	ServiceName string     `db:"service_name" json:"service_name"`
 	Price       int        `db:"price"        json:"price"`
 	UserID      uuid.UUID  `db:"user_id"      json:"user_id"`

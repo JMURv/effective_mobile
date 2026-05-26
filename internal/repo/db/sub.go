@@ -2,9 +2,12 @@ package db
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 
-	"github.com/JMURv/golang-clean-template/internal/dto"
-	md "github.com/JMURv/golang-clean-template/internal/models"
+	"github.com/JMURv/effective-mobile/internal/dto"
+	md "github.com/JMURv/effective-mobile/internal/models"
+	"github.com/JMURv/effective-mobile/internal/repo"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/opentracing/opentracing-go"
@@ -51,23 +54,13 @@ func (r *Repository) Create(
 
 	sqlQuery, args, err := query.ToSql()
 	if err != nil {
+		zap.L().Error("Error while building query", zap.Error(err))
 		return md.Subscription{}, err
 	}
 
-	var res md.Subscription
-	err = r.conn.GetContext(
-		ctx,
-		&res,
-		sqlQuery,
-		args...,
-	)
-	if err != nil {
-		zap.L().Error(
-			"failed to create subscription",
-			zap.String("op", op),
-			zap.Error(err),
-		)
-
+	res := md.Subscription{}
+	if err = r.conn.GetContext(ctx, &res, sqlQuery, args...); err != nil {
+		zap.L().Error("failed to create subscription", zap.String("op", op), zap.Error(err))
 		return md.Subscription{}, err
 	}
 
@@ -99,12 +92,22 @@ func (r *Repository) GetByID(
 
 	sqlQuery, args, err := query.ToSql()
 	if err != nil {
+		zap.L().Error("Error while building query", zap.Error(err))
 		return md.Subscription{}, err
 	}
 
 	res := md.Subscription{}
-	err = r.conn.GetContext(ctx, &res, sqlQuery, args...)
-	if err != nil {
+	if err = r.conn.GetContext(ctx, &res, sqlQuery, args...); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			zap.L().Info("subscription not found", zap.String("op", op))
+			return md.Subscription{}, repo.ErrNotFound
+		}
+
+		zap.L().Error(
+			"failed to get subscription",
+			zap.String("op", op),
+			zap.Error(err),
+		)
 		return md.Subscription{}, err
 	}
 
@@ -133,12 +136,13 @@ func (r *Repository) List(ctx context.Context) ([]md.Subscription, error) {
 
 	sqlQuery, args, err := query.ToSql()
 	if err != nil {
+		zap.L().Error("Error while building query", zap.Error(err))
 		return nil, err
 	}
 
 	var res []md.Subscription
-	err = r.conn.SelectContext(ctx, &res, sqlQuery, args...)
-	if err != nil {
+	if err = r.conn.SelectContext(ctx, &res, sqlQuery, args...); err != nil {
+		zap.L().Error("failed to list subscriptions", zap.String("op", op), zap.Error(err))
 		return nil, err
 	}
 
@@ -191,12 +195,18 @@ func (r *Repository) Update(
 
 	sqlQuery, args, err := builder.ToSql()
 	if err != nil {
+		zap.L().Error("Error while building query", zap.Error(err))
 		return md.Subscription{}, err
 	}
 
 	res := md.Subscription{}
-	err = r.conn.GetContext(ctx, &res, sqlQuery, args...)
-	if err != nil {
+	if err = r.conn.GetContext(ctx, &res, sqlQuery, args...); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			zap.L().Info("subscription not found", zap.String("op", op))
+			return md.Subscription{}, repo.ErrNotFound
+		}
+
+		zap.L().Error("failed to update subscription", zap.String("op", op), zap.Error(err))
 		return md.Subscription{}, err
 	}
 
@@ -218,11 +228,15 @@ func (r *Repository) Delete(
 
 	sqlQuery, args, err := query.ToSql()
 	if err != nil {
+		zap.L().Error("Error while building query", zap.Error(err))
 		return err
 	}
 
-	_, err = r.conn.ExecContext(ctx, sqlQuery, args...)
-	return err
+	if _, err = r.conn.ExecContext(ctx, sqlQuery, args...); err != nil {
+		zap.L().Error("failed to delete subscription", zap.String("op", op), zap.Error(err))
+		return err
+	}
+	return nil
 }
 
 func (r *Repository) CalculateTotalCost(
@@ -255,12 +269,14 @@ func (r *Repository) CalculateTotalCost(
 
 	sqlQuery, args, err := query.ToSql()
 	if err != nil {
+		zap.L().Error("Error while building query", zap.Error(err))
 		return 0, err
 	}
 
 	var total int64
 	err = r.conn.GetContext(ctx, &total, sqlQuery, args...)
 	if err != nil {
+		zap.L().Error("failed to calculate total cost", zap.String("op", op), zap.Error(err))
 		return 0, err
 	}
 

@@ -7,13 +7,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/JMURv/golang-clean-template/internal/cache/redis"
-	"github.com/JMURv/golang-clean-template/internal/config"
-	"github.com/JMURv/golang-clean-template/internal/ctrl"
-	"github.com/JMURv/golang-clean-template/internal/hdl/http"
-	"github.com/JMURv/golang-clean-template/internal/observability/metrics/prometheus"
-	"github.com/JMURv/golang-clean-template/internal/observability/tracing/jaeger"
-	"github.com/JMURv/golang-clean-template/internal/repo/db"
+	"github.com/JMURv/effective-mobile/internal/cache/redis"
+	"github.com/JMURv/effective-mobile/internal/config"
+	"github.com/JMURv/effective-mobile/internal/ctrl"
+	"github.com/JMURv/effective-mobile/internal/hdl/http"
+	"github.com/JMURv/effective-mobile/internal/hdl/validation"
+	"github.com/JMURv/effective-mobile/internal/observability/metrics/prometheus"
+	"github.com/JMURv/effective-mobile/internal/observability/tracing/jaeger"
+	"github.com/JMURv/effective-mobile/internal/repo/db"
 	"go.uber.org/zap"
 )
 
@@ -50,8 +51,9 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	conf := config.MustLoad()
+	conf := config.MustLoad("")
 	mustRegisterLogger(conf.Mode, conf.LogLvl)
+	validation.New()
 
 	prom := prometheus.New(conf.Server.PromPort)
 	go prom.Start()
